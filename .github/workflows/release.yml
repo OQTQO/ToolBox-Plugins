@@ -1,0 +1,80 @@
+name: Plugin Release
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: windows-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+
+      - name: Download ToolBox Plugin DevKit
+        shell: pwsh
+        env:
+          DEVKIT_URL: https://github.com/OQTQO/ToolBox/releases/download/v0.2.0/ToolBox-PluginDevKit-0.2.0.zip
+        run: |
+          New-Item -ItemType Directory -Path .\sdk -Force | Out-Null
+          $devKitZip = Join-Path $env:RUNNER_TEMP 'ToolBox-PluginDevKit.zip'
+          Invoke-WebRequest -Uri $env:DEVKIT_URL -OutFile $devKitZip
+          Expand-Archive -LiteralPath $devKitZip -DestinationPath (Join-Path $env:RUNNER_TEMP 'ToolBox-PluginDevKit') -Force
+          Copy-Item -LiteralPath (Join-Path $env:RUNNER_TEMP 'ToolBox-PluginDevKit\sdk\ToolBox.PluginSdk.0.2.0.nupkg') -Destination .\sdk
+
+      - name: Restore and build
+        shell: pwsh
+        run: .\tools\Validate-Plugins.ps1
+
+      - name: Package plugins
+        shell: pwsh
+        env:
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: |
+          $version = $env:RELEASE_TAG.TrimStart('v')
+          New-Item -ItemType Directory -Path .\artifacts -Force | Out-Null
+          .\tools\New-PluginPackage.ps1 `
+            -RuntimeDirectory .\plugins\KeyboardMouse\bin\Release\net8.0 `
+            -ManifestPath .\plugins\KeyboardMouse\manifest.json `
+            -Version $version `
+            -PackageName "KeyboardMouse-$version.tpk" `
+            -OutputDirectory .\artifacts
+          .\tools\New-PluginPackage.ps1 `
+            -RuntimeDirectory .\plugins\AudioRelay\bin\Release\net8.0-windows10.0.19041.0 `
+            -ManifestPath .\plugins\AudioRelay\manifest.json `
+            -Version $version `
+            -PackageName "PhoneAudioRelay-$version.tpk" `
+            -OutputDirectory .\artifacts
+          Get-FileHash .\artifacts\*.tpk -Algorithm SHA256 | ForEach-Object {
+            "{0}  {1}" -f $_.Hash.ToLowerInvariant(), $_.Path.Split('\')[-1]
+          } | Set-Content ".\artifacts\SHA256SUMS-$env:RELEASE_TAG.txt" -Encoding ascii
+
+      - name: Create or update GitHub Release
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: |
+          gh release view $env:RELEASE_TAG --repo $env:GITHUB_REPOSITORY *> $null
+          if ($LASTEXITCODE -ne 0) {
+            gh release create $env:RELEASE_TAG `
+              --repo $env:GITHUB_REPOSITORY `
+              --title "ToolBox Plugins $env:RELEASE_TAG" `
+              --generate-notes `
+              --verify-tag
+            if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          }
+          gh release upload $env:RELEASE_TAG .\artifacts\*.tpk ".\artifacts\SHA256SUMS-$env:RELEASE_TAG.txt" `
+            --repo $env:GITHUB_REPOSITORY `
+            --clobber

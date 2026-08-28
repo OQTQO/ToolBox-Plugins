@@ -1,0 +1,16 @@
+# .NET build output
+[Bb]in/
+[Oo]bj/
+TestResults/
+artifacts/
+
+# Local SDK package copied from the ToolBox developer kit
+sdk/*.nupkg
+
+# Local editor files
+.vs/
+.idea/
+*.user
+*.suo
+*.tmp
+*.bak

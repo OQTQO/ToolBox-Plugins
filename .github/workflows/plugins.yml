@@ -1,0 +1,46 @@
+name: Plugins
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: plugins-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    runs-on: windows-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+
+      - name: Download ToolBox Plugin DevKit
+        shell: pwsh
+        env:
+          DEVKIT_URL: https://github.com/OQTQO/ToolBox/releases/download/v0.2.0/ToolBox-PluginDevKit-0.2.0.zip
+        run: |
+          New-Item -ItemType Directory -Path .\sdk -Force | Out-Null
+          $devKitZip = Join-Path $env:RUNNER_TEMP 'ToolBox-PluginDevKit.zip'
+          Invoke-WebRequest -Uri $env:DEVKIT_URL -OutFile $devKitZip
+          Expand-Archive -LiteralPath $devKitZip -DestinationPath (Join-Path $env:RUNNER_TEMP 'ToolBox-PluginDevKit') -Force
+          Copy-Item -LiteralPath (Join-Path $env:RUNNER_TEMP 'ToolBox-PluginDevKit\sdk\ToolBox.PluginSdk.0.2.0.nupkg') -Destination .\sdk
+
+      - name: Restore, build and test plugins
+        shell: pwsh
+        run: .\tools\Validate-Plugins.ps1

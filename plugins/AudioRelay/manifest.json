@@ -1,0 +1,21 @@
+{
+  "formatVersion": 1,
+  "id": "com.toolbox.audio-relay",
+  "name": "Phone Audio Relay",
+  "version": "0.2.0",
+  "pluginApiMajor": 1,
+  "publisher": "toolbox.official",
+  "platform": {
+    "os": "windows",
+    "arch": "x64"
+  },
+  "runtime": {
+    "supportedModes": [
+      "outOfProcess",
+      "inProcess"
+    ],
+    "preferredMode": "outOfProcess",
+    "background": true
+  },
+  "entryPoint": "AudioRelayPlugin.AudioRelayPlugin, AudioRelay"
+}
