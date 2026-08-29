@@ -13,7 +13,7 @@
 
 ## 开发环境
 
-从 ToolBox 主仓库的 GitHub Release 下载 `ToolBox-PluginDevKit`，解压后把其中的 `ToolBox.PluginSdk.0.2.0.nupkg` 放入本仓库的 `sdk/` 目录。然后运行：
+从 ToolBox 主仓库的 GitHub Release 下载 `ToolBox-PluginDevKit`，解压后把其中的 `ToolBox.PluginSdk.0.2.2.nupkg` 放入本仓库的 `sdk/` 目录。然后运行：
 
 ```powershell
 dotnet restore .\ToolBox-Plugins.sln --configfile .\NuGet.config

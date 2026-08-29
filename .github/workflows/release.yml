@@ -25,13 +25,13 @@ jobs:
       - name: Download ToolBox Plugin DevKit
         shell: pwsh
         env:
-          DEVKIT_URL: https://github.com/OQTQO/ToolBox/releases/download/v0.2.0/ToolBox-PluginDevKit-0.2.0.zip
+          DEVKIT_URL: https://github.com/OQTQO/ToolBox/releases/download/v0.2.2/ToolBox-PluginDevKit-0.2.2.zip
         run: |
           New-Item -ItemType Directory -Path .\sdk -Force | Out-Null
           $devKitZip = Join-Path $env:RUNNER_TEMP 'ToolBox-PluginDevKit.zip'
           Invoke-WebRequest -Uri $env:DEVKIT_URL -OutFile $devKitZip
           Expand-Archive -LiteralPath $devKitZip -DestinationPath (Join-Path $env:RUNNER_TEMP 'ToolBox-PluginDevKit') -Force
-          Copy-Item -LiteralPath (Join-Path $env:RUNNER_TEMP 'ToolBox-PluginDevKit\sdk\ToolBox.PluginSdk.0.2.0.nupkg') -Destination .\sdk
+          Copy-Item -LiteralPath (Join-Path $env:RUNNER_TEMP 'ToolBox-PluginDevKit\sdk\ToolBox.PluginSdk.0.2.2.nupkg') -Destination .\sdk
 
       - name: Restore and build
         shell: pwsh

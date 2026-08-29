@@ -1,8 +1,9 @@
+using System.Globalization;
 using ToolBox.PluginSdk;
 
 namespace AudioRelayPlugin;
 
-public sealed class AudioRelayPlugin : IAudioRelayPlugin
+public sealed class AudioRelayPlugin : IAudioRelayPlugin, IPluginUiProvider
 {
     private readonly object _gate = new();
     private readonly IAudioRelayPlatform _platform;
@@ -147,6 +148,70 @@ public sealed class AudioRelayPlugin : IAudioRelayPlugin
             ErrorCode = null
         });
         return ValueTask.CompletedTask;
+    }
+
+    public PluginUiSnapshot GetSnapshot()
+    {
+        var snapshot = Snapshot;
+        var actions = new List<PluginUiAction>();
+        if (_started && snapshot.Status is AudioRelayStatus.Ready or AudioRelayStatus.Error)
+        {
+            actions.Add(new PluginUiAction("refresh", "Refresh devices"));
+            actions.AddRange(snapshot.Devices.Select(device => new PluginUiAction(
+                "connect",
+                $"Receive from {device.Name}",
+                device.Id)));
+        }
+
+        if (_started && snapshot.Status is AudioRelayStatus.Connecting or AudioRelayStatus.Streaming)
+        {
+            actions.Add(new PluginUiAction("disconnect", "Stop receiving"));
+        }
+
+        return new PluginUiSnapshot(
+            snapshot.StatusMessage,
+            [
+                new PluginUiValue("Route", snapshot.Status.ToString()),
+                new PluginUiValue("Selected phone", snapshot.SelectedDeviceName ?? "None"),
+                new PluginUiValue("Paired sources", snapshot.Devices.Length.ToString(CultureInfo.InvariantCulture))
+            ],
+            actions,
+            null);
+    }
+
+    public async ValueTask<PluginUiSnapshot> ExecuteAsync(
+        string actionId,
+        string? argument,
+        CancellationToken cancellationToken)
+    {
+        ObjectDisposedException.ThrowIf(_disposed, this);
+        cancellationToken.ThrowIfCancellationRequested();
+
+        switch (actionId)
+        {
+            case "refresh":
+                await RefreshDevicesAsync(cancellationToken);
+                break;
+            case "connect":
+                await ConnectAsync(argument ?? throw new ArgumentException("A device id is required.", nameof(argument)), cancellationToken);
+                break;
+            case "disconnect":
+                await DisconnectAsync(cancellationToken);
+                break;
+            default:
+                throw new InvalidOperationException($"Unknown AudioRelay action '{actionId}'.");
+        }
+
+        return GetSnapshot();
+    }
+
+    public ValueTask<PluginUiSnapshot> HandleInputAsync(
+        PluginInputEvent input,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(input);
+        cancellationToken.ThrowIfCancellationRequested();
+        return ValueTask.FromResult(GetSnapshot());
     }
 
     public ValueTask DisposeAsync()

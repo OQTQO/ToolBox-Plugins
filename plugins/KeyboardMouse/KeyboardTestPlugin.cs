@@ -3,7 +3,7 @@ using ToolBox.PluginSdk;
 
 namespace KeyboardTestPlugin;
 
-public sealed class KeyboardTestPlugin : IKeyboardTestPlugin
+public sealed class KeyboardTestPlugin : IKeyboardTestPlugin, IPluginUiProvider
 {
     private KeyboardTestSettings _settings = KeyboardTestSettings.Default;
     private KeyboardTestSnapshot _snapshot = KeyboardTestSnapshot.Disabled(KeyboardTestSettings.Default);
@@ -52,6 +52,63 @@ public sealed class KeyboardTestPlugin : IKeyboardTestPlugin
         _snapshot = _snapshot with { Settings = settings };
         RaiseSnapshotChanged();
         return ValueTask.CompletedTask;
+    }
+
+    public PluginUiSnapshot GetSnapshot()
+    {
+        var snapshot = _snapshot;
+        return new PluginUiSnapshot(
+            string.IsNullOrWhiteSpace(snapshot.LastInput)
+                ? "Click this area and press keys or mouse buttons to test input."
+                : $"Last input: {snapshot.LastInput}",
+            [
+                new PluginUiValue("Key events", snapshot.KeyEventCount.ToString(CultureInfo.InvariantCulture)),
+                new PluginUiValue("Mouse events", snapshot.MouseEventCount.ToString(CultureInfo.InvariantCulture))
+            ],
+            [],
+            new PluginInputSurface(
+                "Keyboard and mouse test surface",
+                "Focus this area, then press a key or click to send input to the plugin."));
+    }
+
+    public ValueTask<PluginUiSnapshot> ExecuteAsync(
+        string actionId,
+        string? argument,
+        CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        throw new InvalidOperationException($"Unknown KeyboardMouse action '{actionId}'.");
+    }
+
+    public ValueTask<PluginUiSnapshot> HandleInputAsync(
+        PluginInputEvent input,
+        CancellationToken cancellationToken)
+    {
+        ObjectDisposedException.ThrowIf(_disposed, this);
+        ArgumentNullException.ThrowIfNull(input);
+        cancellationToken.ThrowIfCancellationRequested();
+
+        switch (input.Type)
+        {
+            case PluginInputEventType.KeyDown:
+            case PluginInputEventType.KeyUp:
+                if (!string.IsNullOrWhiteSpace(input.Key))
+                {
+                    ObserveKey(input.Key, input.Type == PluginInputEventType.KeyDown);
+                }
+
+                break;
+            case PluginInputEventType.MouseDown:
+            case PluginInputEventType.MouseUp:
+                if (Enum.TryParse<KeyboardTestMouseButton>(input.MouseButton, ignoreCase: true, out var button))
+                {
+                    ObserveMouse(button, input.Type == PluginInputEventType.MouseDown, input.X, input.Y);
+                }
+
+                break;
+        }
+
+        return ValueTask.FromResult(GetSnapshot());
     }
 
     public void ObserveKey(string key, bool isDown)

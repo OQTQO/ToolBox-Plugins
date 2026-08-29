@@ -4,12 +4,12 @@
     <EnableWindowsTargeting>true</EnableWindowsTargeting>
     <RootNamespace>AudioRelayPlugin</RootNamespace>
     <AssemblyName>AudioRelay</AssemblyName>
-    <Version>0.2.0</Version>
+    <Version>0.2.2</Version>
     <CopyLocalLockFileAssemblies>true</CopyLocalLockFileAssemblies>
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="ToolBox.PluginSdk" Version="0.2.0" />
+    <PackageReference Include="ToolBox.PluginSdk" Version="0.2.2" />
   </ItemGroup>
 
   <ItemGroup>
