@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using Windows.Devices.Enumeration;
 using Windows.Foundation;
 using Windows.Foundation.Metadata;
@@ -54,7 +55,7 @@ internal sealed class WindowsAudioRelayPlatform : IAudioRelayPlatform
         EnsureSupported();
         cancellationToken.ThrowIfCancellationRequested();
 
-        var devices = new Dictionary<string, AudioRelayDevice>(StringComparer.Ordinal);
+        var devices = new ConcurrentDictionary<string, AudioRelayDevice>(StringComparer.Ordinal);
         var completion = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         DeviceWatcher watcher;
         try
@@ -83,6 +84,12 @@ internal sealed class WindowsAudioRelayPlatform : IAudioRelayPlatform
                 completion.TrySetException(new AudioRelayPlatformException(
                     "AUDIO_RELAY_DISCOVERY_ABORTED",
                     "Windows stopped Bluetooth audio discovery before enumeration completed."));
+            }
+            else if (sender.Status != DeviceWatcherStatus.EnumerationCompleted)
+            {
+                completion.TrySetException(new AudioRelayPlatformException(
+                    "AUDIO_RELAY_DISCOVERY_STOPPED",
+                    "Windows stopped Bluetooth audio discovery unexpectedly."));
             }
         };
 
@@ -130,6 +137,7 @@ internal sealed class WindowsAudioRelayPlatform : IAudioRelayPlatform
 
         try
         {
+            connection.StateChanged += OnConnectionStateChanged;
             await connection.StartAsync();
             cancellationToken.ThrowIfCancellationRequested();
             var result = await connection.OpenAsync();
@@ -159,7 +167,11 @@ internal sealed class WindowsAudioRelayPlatform : IAudioRelayPlatform
             _connection = null;
         }
 
-        connection?.Dispose();
+        if (connection is not null)
+        {
+            connection.StateChanged -= OnConnectionStateChanged;
+            connection.Dispose();
+        }
         if (connection is not null)
         {
             StateChanged?.Invoke(AudioRelayTransportState.Closed);
@@ -188,7 +200,15 @@ internal sealed class WindowsAudioRelayPlatform : IAudioRelayPlatform
             }
         }
 
+        connection.StateChanged -= OnConnectionStateChanged;
         connection.Dispose();
+    }
+
+    private void OnConnectionStateChanged(AudioPlaybackConnection sender, object args)
+    {
+        StateChanged?.Invoke(sender.State == AudioPlaybackConnectionState.Opened
+            ? AudioRelayTransportState.Opened
+            : AudioRelayTransportState.Closed);
     }
 
     private void EnsureSupported()

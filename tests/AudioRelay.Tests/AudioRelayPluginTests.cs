@@ -61,6 +61,114 @@ public sealed class AudioRelayPluginTests
     }
 
     [Fact]
+    public async Task UiProviderExposesSearchRefreshPerDeviceConnectAndDisconnectActions()
+    {
+        var platform = new FakeAudioRelayPlatform(
+        [
+            new AudioRelayDevice("phone-2", "Zeta Phone"),
+            new AudioRelayDevice("phone-1", "Alpha Phone")
+        ]);
+        await using var plugin = new AudioRelayPlugin.AudioRelayPlugin(platform);
+        using var context = new TestPluginContext(plugin.Id);
+
+        await plugin.StartAsync(context, CancellationToken.None);
+
+        var readyActions = plugin.GetSnapshot().Actions;
+        Assert.Contains(readyActions, action => action.Id == "search");
+        Assert.Contains(readyActions, action => action.Id == "refresh");
+        var connectAction = Assert.Single(
+            readyActions,
+            action => action.Id == "connect" && action.Argument == "phone-1");
+
+        await plugin.ExecuteAsync("search", null, CancellationToken.None);
+        await plugin.ExecuteAsync(connectAction.Id, connectAction.Argument, CancellationToken.None);
+
+        Assert.Equal(AudioRelayStatus.Streaming, plugin.Snapshot.Status);
+        Assert.Contains(plugin.GetSnapshot().Actions, action => action.Id == "disconnect");
+
+        await plugin.ExecuteAsync("disconnect", null, CancellationToken.None);
+
+        Assert.Equal(AudioRelayStatus.Ready, plugin.Snapshot.Status);
+        Assert.Contains(plugin.GetSnapshot().Actions, action => action.Id == "refresh");
+        Assert.Equal(2, platform.DiscoveryCount);
+    }
+
+    [Fact]
+    public async Task SearchNormalizesDevicesAndPreservesThenClearsSelection()
+    {
+        var platform = new FakeAudioRelayPlatform(
+        [
+            new AudioRelayDevice("phone-2", "Zeta Phone"),
+            new AudioRelayDevice("phone-1", "Alpha Phone"),
+            new AudioRelayDevice("phone-1", "Duplicate Phone")
+        ]);
+        await using var plugin = new AudioRelayPlugin.AudioRelayPlugin(platform);
+        using var context = new TestPluginContext(plugin.Id);
+
+        await plugin.StartAsync(context, CancellationToken.None);
+
+        Assert.Equal(["Alpha Phone", "Zeta Phone"], plugin.Snapshot.Devices.Select(device => device.Name));
+        await plugin.ConnectAsync("phone-1", CancellationToken.None);
+        await plugin.DisconnectAsync(CancellationToken.None);
+
+        platform.Devices =
+        [
+            new AudioRelayDevice("phone-1", "Alpha Phone"),
+            new AudioRelayDevice("phone-3", "New Phone")
+        ];
+        await plugin.RefreshDevicesAsync(CancellationToken.None);
+        Assert.Equal("phone-1", plugin.Snapshot.SelectedDeviceId);
+
+        platform.Devices = [new AudioRelayDevice("phone-3", "New Phone")];
+        await plugin.SearchDevicesAsync(CancellationToken.None);
+        Assert.Null(plugin.Snapshot.SelectedDeviceId);
+    }
+
+    [Fact]
+    public async Task DiscoveryFailureDuringStartLeavesPluginRunningAndRetryable()
+    {
+        var platform = new FakeAudioRelayPlatform([new AudioRelayDevice("phone-1", "Test Phone")])
+        {
+            DiscoveryException = new AudioRelayPlatformException(
+                "AUDIO_RELAY_DISCOVERY_DENIED",
+                "Bluetooth discovery was denied by Windows.")
+        };
+        await using var plugin = new AudioRelayPlugin.AudioRelayPlugin(platform);
+        using var context = new TestPluginContext(plugin.Id);
+
+        await plugin.StartAsync(context, CancellationToken.None);
+
+        Assert.Equal(AudioRelayStatus.Error, plugin.Snapshot.Status);
+        Assert.Equal("AUDIO_RELAY_DISCOVERY_DENIED", plugin.Snapshot.ErrorCode);
+        Assert.Contains(plugin.GetSnapshot().Actions, action => action.Id == "search");
+
+        platform.DiscoveryException = null;
+        await plugin.SearchDevicesAsync(CancellationToken.None);
+
+        Assert.Equal(AudioRelayStatus.Ready, plugin.Snapshot.Status);
+        Assert.Single(plugin.Snapshot.Devices);
+    }
+
+    [Fact]
+    public async Task CancelingSearchStopsTheUnderlyingDiscovery()
+    {
+        var platform = new FakeAudioRelayPlatform([new AudioRelayDevice("phone-1", "Test Phone")]);
+        await using var plugin = new AudioRelayPlugin.AudioRelayPlugin(platform);
+        using var context = new TestPluginContext(plugin.Id);
+        await plugin.StartAsync(context, CancellationToken.None);
+
+        platform.BlockDiscoveryUntilCanceled = true;
+        using var cancellation = new CancellationTokenSource();
+        var searchTask = plugin.SearchDevicesAsync(cancellation.Token).AsTask();
+        await platform.DiscoveryStarted.Task.WaitAsync(TimeSpan.FromSeconds(2));
+        cancellation.Cancel();
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => searchTask);
+        Assert.Equal(0, platform.ActiveDiscoveryCount);
+        Assert.Equal(AudioRelayStatus.Ready, plugin.Snapshot.Status);
+    }
+
+    [Fact]
     public async Task UnsupportedWindowsStateIsVisibleWithoutDiscovery()
     {
         var platform = new FakeAudioRelayPlatform([]) { IsSupported = false };
@@ -72,6 +180,52 @@ public sealed class AudioRelayPluginTests
         Assert.Equal(AudioRelayStatus.Unsupported, plugin.Snapshot.Status);
         Assert.Equal("AUDIO_RELAY_WINDOWS_UNSUPPORTED", plugin.Snapshot.ErrorCode);
         Assert.Equal(0, platform.DiscoveryCount);
+    }
+
+    [Fact]
+    public async Task ConnectionFailurePreservesPlatformErrorCodeAndAllowsRetry()
+    {
+        var platform = new FakeAudioRelayPlatform([new AudioRelayDevice("phone-1", "Test Phone")])
+        {
+            ConnectException = new AudioRelayPlatformException(
+                "AUDIO_RELAY_CONNECTION_TIMEOUT",
+                "The Bluetooth connection timed out.")
+        };
+        await using var plugin = new AudioRelayPlugin.AudioRelayPlugin(platform);
+        using var context = new TestPluginContext(plugin.Id);
+
+        await plugin.StartAsync(context, CancellationToken.None);
+
+        await Assert.ThrowsAsync<AudioRelayPlatformException>(
+            () => plugin.ConnectAsync("phone-1", CancellationToken.None).AsTask());
+
+        Assert.Equal(AudioRelayStatus.Error, plugin.Snapshot.Status);
+        Assert.Equal("AUDIO_RELAY_CONNECTION_TIMEOUT", plugin.Snapshot.ErrorCode);
+
+        platform.ConnectException = null;
+        await plugin.ConnectAsync("phone-1", CancellationToken.None);
+        Assert.Equal(AudioRelayStatus.Streaming, plugin.Snapshot.Status);
+    }
+
+    [Fact]
+    public async Task DisconnectFailurePreservesErrorStateInsteadOfReportingReady()
+    {
+        var platform = new FakeAudioRelayPlatform([new AudioRelayDevice("phone-1", "Test Phone")]);
+        await using var plugin = new AudioRelayPlugin.AudioRelayPlugin(platform);
+        using var context = new TestPluginContext(plugin.Id);
+
+        await plugin.StartAsync(context, CancellationToken.None);
+        await plugin.ConnectAsync("phone-1", CancellationToken.None);
+        platform.DisconnectException = new AudioRelayPlatformException(
+            "AUDIO_RELAY_DISCONNECT_FAILED",
+            "The connection could not be closed.");
+
+        await Assert.ThrowsAsync<AudioRelayPlatformException>(
+            () => plugin.DisconnectAsync(CancellationToken.None).AsTask());
+
+        Assert.Equal(AudioRelayStatus.Error, plugin.Snapshot.Status);
+        Assert.Equal("AUDIO_RELAY_DISCONNECT_FAILED", plugin.Snapshot.ErrorCode);
+        platform.DisconnectException = null;
     }
 
     [Fact]
@@ -93,24 +247,62 @@ public sealed class AudioRelayPluginTests
 
     private sealed class FakeAudioRelayPlatform(AudioRelayDevice[] devices) : IAudioRelayPlatform
     {
+        public AudioRelayDevice[] Devices { get; set; } = devices;
+
         public bool IsSupported { get; set; } = true;
+
+        public Exception? DiscoveryException { get; set; }
+
+        public Exception? ConnectException { get; set; }
+
+        public Exception? DisconnectException { get; set; }
+
+        public bool BlockDiscoveryUntilCanceled { get; set; }
 
         public string? ConnectedDeviceId { get; private set; }
 
         public int DiscoveryCount { get; private set; }
 
+        public int ActiveDiscoveryCount { get; private set; }
+
+        public TaskCompletionSource DiscoveryStarted { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+
         public event Action<AudioRelayTransportState>? StateChanged;
 
-        public ValueTask<AudioRelayDevice[]> FindDevicesAsync(CancellationToken cancellationToken)
+        public async ValueTask<AudioRelayDevice[]> FindDevicesAsync(CancellationToken cancellationToken)
         {
             cancellationToken.ThrowIfCancellationRequested();
             DiscoveryCount++;
-            return ValueTask.FromResult(devices.ToArray());
+            ActiveDiscoveryCount++;
+            try
+            {
+                if (DiscoveryException is not null)
+                {
+                    throw DiscoveryException;
+                }
+
+                if (BlockDiscoveryUntilCanceled)
+                {
+                    DiscoveryStarted.TrySetResult();
+                    await Task.Delay(Timeout.InfiniteTimeSpan, cancellationToken);
+                }
+
+                return Devices.ToArray();
+            }
+            finally
+            {
+                ActiveDiscoveryCount--;
+            }
         }
 
         public ValueTask ConnectAsync(string deviceId, CancellationToken cancellationToken)
         {
             cancellationToken.ThrowIfCancellationRequested();
+            if (ConnectException is not null)
+            {
+                throw ConnectException;
+            }
+
             ConnectedDeviceId = deviceId;
             StateChanged?.Invoke(AudioRelayTransportState.Opened);
             return ValueTask.CompletedTask;
@@ -118,6 +310,11 @@ public sealed class AudioRelayPluginTests
 
         public void Disconnect()
         {
+            if (DisconnectException is not null)
+            {
+                throw DisconnectException;
+            }
+
             ConnectedDeviceId = null;
         }
 

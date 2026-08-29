@@ -8,6 +8,8 @@ public interface IAudioRelayPlugin : IPlugin
 
     event Action<AudioRelaySnapshot>? SnapshotChanged;
 
+    ValueTask SearchDevicesAsync(CancellationToken cancellationToken);
+
     ValueTask RefreshDevicesAsync(CancellationToken cancellationToken);
 
     ValueTask ConnectAsync(string deviceId, CancellationToken cancellationToken);
@@ -34,7 +36,8 @@ public sealed record AudioRelaySnapshot(
     string? SelectedDeviceId,
     string? SelectedDeviceName,
     string StatusMessage,
-    string? ErrorCode)
+    string? ErrorCode,
+    string? LastOperation = null)
 {
     public static AudioRelaySnapshot Disabled()
     {
@@ -44,6 +47,7 @@ public sealed record AudioRelaySnapshot(
             SelectedDeviceId: null,
             SelectedDeviceName: null,
             StatusMessage: "Audio relay is disabled.",
-            ErrorCode: null);
+            ErrorCode: null,
+            LastOperation: "Disabled");
     }
 }
