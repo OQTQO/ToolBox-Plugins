@@ -2,6 +2,8 @@
 
 这是 [ToolBox](https://github.com/OQTQO/ToolBox) 的官方与朋友插件仓库。插件源码独立于 ToolBox 主仓库维护，提交插件不需要修改 ToolBox Host、Core 或 Worker。
 
+新对话或新插件开发先阅读 [`AI.md`](AI.md)；SDK 版本和运行边界见 [`docs/compatibility.md`](docs/compatibility.md)，朋友提交规范见 [`docs/contribution.md`](docs/contribution.md)。
+
 ## 当前插件
 
 | 插件 | 目录 | 说明 |
