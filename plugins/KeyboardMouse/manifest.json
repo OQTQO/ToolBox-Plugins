@@ -1,8 +1,8 @@
 {
-  "formatVersion": 1,
+  "formatVersion": 2,
   "id": "com.toolbox.keyboard-test",
   "name": "Keyboard & Mouse Test",
-  "version": "0.2.2",
+  "version": "0.2.3",
   "pluginApiMajor": 1,
   "publisher": "toolbox.official",
   "platform": {
@@ -16,5 +16,10 @@
     "preferredMode": "outOfProcess",
     "background": false
   },
+  "capabilities": [{
+    "id": "host.ui.input-events",
+    "required": true,
+    "reason": "Displays keyboard and pointer events explicitly forwarded to the plugin UI by ToolBox Host."
+  }],
   "entryPoint": "KeyboardTestPlugin.KeyboardTestPlugin, KeyboardTest"
 }

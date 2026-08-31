@@ -15,21 +15,31 @@
 
 ## 开发环境
 
-从 ToolBox 主仓库的 GitHub Release 下载 `ToolBox-PluginDevKit`，解压后把其中的 `ToolBox.PluginSdk.0.2.2.nupkg` 放入本仓库的 `sdk/` 目录。然后运行：
+安装 `global.json` 指定的 .NET 10 SDK。从 ToolBox 主仓库的 GitHub Release 下载 `ToolBox-PluginDevKit`，解压后把其中的 `ToolBox.PluginSdk.0.4.0.nupkg` 放入本仓库的 `sdk/` 目录。然后运行：
 
 ```powershell
 dotnet restore .\ToolBox-Plugins.sln --configfile .\NuGet.config
-dotnet build .\ToolBox-Plugins.sln --configuration Release --no-restore
-dotnet test .\ToolBox-Plugins.sln --configuration Release --no-build --no-restore
+pwsh -File .\tools\Validate-Plugins.ps1
 ```
+
+若本机同时检出 ToolBox 软件仓库，可运行真实 Host 跨仓库烟雾测试：
+
+```powershell
+pwsh -File .\tools\Invoke-ToolBoxHostSmokeTest.ps1 `
+  -SoftwareRepository ..\软件
+```
+
+脚本在隔离目录中构建并发布 Host/Worker、生成两个真实 `.tpk`，然后由 `ToolBox.Host.exe` 逐包验证安装、启用、通用 UI 快照、停用和卸载；插件必须适配软件契约，测试不为具体插件修改 Host 行为。
 
 本地打包示例：
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File .\tools\New-PluginPackage.ps1 `
-  -RuntimeDirectory .\plugins\KeyboardMouse\bin\Release\net8.0 `
+pwsh -File .\tools\New-PluginPackage.ps1 `
+  -RuntimeDirectory .\plugins\KeyboardMouse\bin\Release\net10.0 `
   -ManifestPath .\plugins\KeyboardMouse\manifest.json `
-  -OutputDirectory .\artifacts
+  -OutputDirectory .\artifacts `
+  -SigningCertificatePath .\publisher.cer `
+  -SigningPrivateKeyPath .\publisher.pk8
 ```
 
 ## 提交插件
@@ -37,3 +47,5 @@ powershell -ExecutionPolicy Bypass -File .\tools\New-PluginPackage.ps1 `
 朋友可以 Fork 本仓库，在 `plugins/<PluginName>/` 下新增插件，补充自己的 `README.md`，然后提交 Pull Request。GitHub Actions 会构建变更插件并生成 `.tpk`；合并后由维护者发布 GitHub Release。
 
 ToolBox 用户从 Release 下载 `.tpk`，在软件中选择安装即可。当前不提供自动更新，插件更新通过新的 GitHub Release 手动下载和安装。
+
+每个插件保持自己的 Manifest、项目和程序集版本；仓库 Release tag 表示一次发布批次，不会覆盖所有插件的版本。完整验证会检查版本一致性、能力声明、包内文件、哈希与 RSA-SHA256 签名，并通过两次打包结果的 SHA-256 验证可复现性。正式发布私钥只能通过受保护的 CI secret 提供，不能提交到仓库。

@@ -20,18 +20,28 @@ jobs:
       - name: Setup .NET
         uses: actions/setup-dotnet@v4
         with:
-          dotnet-version: '8.0.x'
+          dotnet-version: '10.0.x'
 
       - name: Download ToolBox Plugin DevKit
         shell: pwsh
-        env:
-          DEVKIT_URL: https://github.com/OQTQO/ToolBox/releases/download/v0.2.2/ToolBox-PluginDevKit-0.2.2.zip
         run: |
+          [xml]$buildProps = Get-Content .\Directory.Build.props -Raw
+          $sdkVersion = [string]$buildProps.Project.PropertyGroup.ToolBoxPluginSdkVersion
+          $releaseRoot = "https://github.com/OQTQO/ToolBox/releases/download/v$sdkVersion"
+          $devKitName = "ToolBox-PluginDevKit-$sdkVersion.zip"
           New-Item -ItemType Directory -Path .\sdk -Force | Out-Null
           $devKitZip = Join-Path $env:RUNNER_TEMP 'ToolBox-PluginDevKit.zip'
-          Invoke-WebRequest -Uri $env:DEVKIT_URL -OutFile $devKitZip
+          $checksumFile = Join-Path $env:RUNNER_TEMP 'ToolBox-SHA256SUMS.txt'
+          Invoke-WebRequest -Uri "$releaseRoot/$devKitName" -OutFile $devKitZip
+          Invoke-WebRequest -Uri "$releaseRoot/SHA256SUMS-v$sdkVersion.txt" -OutFile $checksumFile
+          $checksumLines = @(Get-Content $checksumFile | Where-Object { $_ -match "  $([regex]::Escape($devKitName))$" })
+          if ($checksumLines.Count -ne 1) { throw "Expected exactly one checksum for '$devKitName'." }
+          $checksumLine = $checksumLines[0]
+          if ($checksumLine -notmatch '^([a-f0-9]{64})  ') { throw "DevKit checksum is missing or invalid for '$devKitName'." }
+          $actualHash = (Get-FileHash -LiteralPath $devKitZip -Algorithm SHA256).Hash.ToLowerInvariant()
+          if ($actualHash -cne $Matches[1]) { throw "DevKit checksum validation failed for '$devKitName'." }
           Expand-Archive -LiteralPath $devKitZip -DestinationPath (Join-Path $env:RUNNER_TEMP 'ToolBox-PluginDevKit') -Force
-          Copy-Item -LiteralPath (Join-Path $env:RUNNER_TEMP 'ToolBox-PluginDevKit\sdk\ToolBox.PluginSdk.0.2.2.nupkg') -Destination .\sdk
+          Copy-Item -LiteralPath (Join-Path $env:RUNNER_TEMP "ToolBox-PluginDevKit\sdk\ToolBox.PluginSdk.$sdkVersion.nupkg") -Destination .\sdk
 
       - name: Restore and build
         shell: pwsh
@@ -41,21 +51,48 @@ jobs:
         shell: pwsh
         env:
           RELEASE_TAG: ${{ github.ref_name }}
+          TOOLBOX_PLUGIN_SIGNING_CERTIFICATE_BASE64: ${{ secrets.TOOLBOX_PLUGIN_SIGNING_CERTIFICATE_BASE64 }}
+          TOOLBOX_PLUGIN_SIGNING_PRIVATE_KEY_BASE64: ${{ secrets.TOOLBOX_PLUGIN_SIGNING_PRIVATE_KEY_BASE64 }}
         run: |
-          $version = $env:RELEASE_TAG.TrimStart('v')
+          if ([string]::IsNullOrWhiteSpace($env:TOOLBOX_PLUGIN_SIGNING_CERTIFICATE_BASE64) `
+              -or [string]::IsNullOrWhiteSpace($env:TOOLBOX_PLUGIN_SIGNING_PRIVATE_KEY_BASE64)) {
+            throw 'The plugin signing certificate and PKCS#8 private key secrets are required for releases.'
+          }
+          $signingCertificatePath = Join-Path $env:RUNNER_TEMP 'toolbox-plugin-signing.cer'
+          $signingPrivateKeyPath = Join-Path $env:RUNNER_TEMP 'toolbox-plugin-signing.pk8'
+          [System.IO.File]::WriteAllBytes(
+            $signingCertificatePath,
+            [Convert]::FromBase64String($env:TOOLBOX_PLUGIN_SIGNING_CERTIFICATE_BASE64))
+          [System.IO.File]::WriteAllBytes(
+            $signingPrivateKeyPath,
+            [Convert]::FromBase64String($env:TOOLBOX_PLUGIN_SIGNING_PRIVATE_KEY_BASE64))
+          $keyboardManifest = Get-Content .\plugins\KeyboardMouse\manifest.json -Raw | ConvertFrom-Json
+          $audioRelayManifest = Get-Content .\plugins\AudioRelay\manifest.json -Raw | ConvertFrom-Json
+          $keyboardVersion = [string]$keyboardManifest.version
+          $audioRelayVersion = [string]$audioRelayManifest.version
           New-Item -ItemType Directory -Path .\artifacts -Force | Out-Null
           .\tools\New-PluginPackage.ps1 `
-            -RuntimeDirectory .\plugins\KeyboardMouse\bin\Release\net8.0 `
+            -RuntimeDirectory .\plugins\KeyboardMouse\bin\Release\net10.0 `
             -ManifestPath .\plugins\KeyboardMouse\manifest.json `
-            -Version $version `
-            -PackageName "KeyboardMouse-$version.tpk" `
-            -OutputDirectory .\artifacts
+            -PackageName "KeyboardMouse-$keyboardVersion.tpk" `
+            -OutputDirectory .\artifacts `
+            -SigningCertificatePath $signingCertificatePath `
+            -SigningPrivateKeyPath $signingPrivateKeyPath
           .\tools\New-PluginPackage.ps1 `
-            -RuntimeDirectory .\plugins\AudioRelay\bin\Release\net8.0-windows10.0.19041.0 `
+            -RuntimeDirectory .\plugins\AudioRelay\bin\Release\net10.0-windows10.0.19041.0 `
             -ManifestPath .\plugins\AudioRelay\manifest.json `
-            -Version $version `
-            -PackageName "PhoneAudioRelay-$version.tpk" `
-            -OutputDirectory .\artifacts
+            -PackageName "PhoneAudioRelay-$audioRelayVersion.tpk" `
+            -OutputDirectory .\artifacts `
+            -SigningCertificatePath $signingCertificatePath `
+            -SigningPrivateKeyPath $signingPrivateKeyPath
+          .\tools\Test-PluginPackage.ps1 `
+            -PackagePath ".\artifacts\KeyboardMouse-$keyboardVersion.tpk" `
+            -ExpectedPluginId $keyboardManifest.id `
+            -ExpectedVersion $keyboardVersion
+          .\tools\Test-PluginPackage.ps1 `
+            -PackagePath ".\artifacts\PhoneAudioRelay-$audioRelayVersion.tpk" `
+            -ExpectedPluginId $audioRelayManifest.id `
+            -ExpectedVersion $audioRelayVersion
           Get-FileHash .\artifacts\*.tpk -Algorithm SHA256 | ForEach-Object {
             "{0}  {1}" -f $_.Hash.ToLowerInvariant(), $_.Path.Split('\')[-1]
           } | Set-Content ".\artifacts\SHA256SUMS-$env:RELEASE_TAG.txt" -Encoding ascii

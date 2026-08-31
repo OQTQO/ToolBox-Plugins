@@ -43,18 +43,20 @@ ToolBox 使用 SDK 的 `IPluginUiProvider` 渲染通用状态卡片和操作按�
 从仓库根目录运行：
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File .\tools\Validate-Plugins.ps1
+pwsh -File .\tools\Validate-Plugins.ps1
 ```
 
 使用通用脚本生成 `.tpk`：
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File .\tools\New-PluginPackage.ps1 `
-  -RuntimeDirectory .\plugins\AudioRelay\bin\Release\net8.0-windows10.0.19041.0 `
+pwsh -File .\tools\New-PluginPackage.ps1 `
+  -RuntimeDirectory .\plugins\AudioRelay\bin\Release\net10.0-windows10.0.19041.0 `
   -ManifestPath .\plugins\AudioRelay\manifest.json `
-  -Version 0.3.0 `
-  -PackageName PhoneAudioRelay-0.3.0.tpk `
-  -OutputDirectory .\artifacts
+  -Version 0.3.1 `
+  -PackageName PhoneAudioRelay-0.3.1.tpk `
+  -OutputDirectory .\artifacts `
+  -SigningCertificatePath .\publisher.cer `
+  -SigningPrivateKeyPath .\publisher.pk8
 ```
 
-生成的包包含 Manifest、插件运行时和 SHA-256 文件清单，不携带私有 `ToolBox.PluginSdk.dll`。
+生成的包包含 Manifest v2、能力声明、插件运行时、SHA-256 文件清单和 RSA-SHA256 发布者签名，不携带私有 `ToolBox.PluginSdk.dll`。

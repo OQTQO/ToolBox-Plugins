@@ -1,10 +1,9 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
-    <TargetFramework>net10.0-windows10.0.19041.0</TargetFramework>
-    <EnableWindowsTargeting>true</EnableWindowsTargeting>
+    <TargetFramework>net10.0</TargetFramework>
     <IsPackable>false</IsPackable>
     <IsTestProject>true</IsTestProject>
-    <AssemblyName>AudioRelay.Tests</AssemblyName>
+    <AssemblyName>KeyboardMouse.Tests</AssemblyName>
   </PropertyGroup>
 
   <ItemGroup>
@@ -18,12 +17,6 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\..\plugins\AudioRelay\AudioRelay.csproj" />
-  </ItemGroup>
-
-  <ItemGroup>
-    <None Include="..\..\plugins\AudioRelay\manifest.json"
-          Link="AudioRelay.manifest.json"
-          CopyToOutputDirectory="PreserveNewest" />
+    <ProjectReference Include="..\..\plugins\KeyboardMouse\KeyboardTest.csproj" />
   </ItemGroup>
 </Project>
