@@ -31,6 +31,7 @@
 - `New-PluginPackage.ps1` 强制使用 DER 证书和 PKCS#8 RSA 私钥生成 `signature.json`；包校验验证证书有效期、发布者绑定和 RSA-SHA256 签名。
 - Release workflow 从受保护 secret 读取证书与私钥，缺少签名材料会直接停止发布；普通验证使用一次性测试密钥，不产生可发布身份。
 - Release workflow 复用验证脚本显式保留的隔离构建产物，不再依赖会被清理或不存在的项目 `bin` 目录。
+- 新增仓库级 `AGENTS.md` 自动恢复入口；上下文脚本默认提取现有任务文档摘要，`-Full` 才输出完整内容，并在 Windows PowerShell 5.1 下可靠定位软件权威仓库。
 - SDK 升级到 0.4.0；插件、测试和 CI 统一迁移到 .NET 10，旧插件二进制与未签名包不再兼容，符合“插件服从软件”的规则。
 - 使用 `global.json` 固定 SDK 10.0.400；KeyboardMouse 升至 0.2.3，AudioRelay 升至 0.3.1，未保留 net8 或旧 SDK 分支。
 
@@ -44,6 +45,7 @@
 - `tools/Invoke-ToolBoxHostSmokeTest.ps1 -SoftwareRepository ..\软件`：通过；两个真实 `.tpk` 均完成 Host 全生命周期。联合验证的软件内容现已发布为 `v0.4.0`，提交 `e6a63a5e2c0471ec4929cf0c84016b7046ad3264`。
 - Manifest v2 签名包复现性、签名验证和真实 Host TOFU 信任链路通过；插件测试仍为 KeyboardMouse 4 项、AudioRelay 10 项。
 - GitHub workflow YAML 解析、上下文导出和 `git diff --check`：通过。
+- 根目录统一恢复、软件独立恢复和插件独立恢复的默认摘要与 `-Full` 完整视图均执行通过；插件独立默认输出由 8,502 字符降至 1,316 字符，SDK 版本和 Git 状态可自动核对。
 
 ## 已知边界
 
