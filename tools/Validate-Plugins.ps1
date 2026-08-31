@@ -1,7 +1,9 @@
 [CmdletBinding()]
 param(
     [ValidateSet('Release')]
-    [string]$Configuration = 'Release'
+    [string]$Configuration = 'Release',
+
+    [string]$ArtifactsPath
 )
 
 Set-StrictMode -Version Latest
@@ -12,8 +14,17 @@ $solutionPath = Join-Path $repositoryRoot 'ToolBox-Plugins.sln'
 $nugetConfigPath = Join-Path $repositoryRoot 'NuGet.config'
 $packageScript = Join-Path $PSScriptRoot 'New-PluginPackage.ps1'
 $packageValidationScript = Join-Path $PSScriptRoot 'Test-PluginPackage.ps1'
-$validationRoot = Join-Path ([System.IO.Path]::GetTempPath()) "ToolBoxPluginBuild\$([Guid]::NewGuid().ToString('N'))"
-$validationArtifacts = Join-Path $validationRoot 'artifacts'
+$usesTemporaryArtifacts = [string]::IsNullOrWhiteSpace($ArtifactsPath)
+$validationRoot = if ($usesTemporaryArtifacts) {
+    Join-Path ([System.IO.Path]::GetTempPath()) "ToolBoxPluginBuild\$([Guid]::NewGuid().ToString('N'))"
+} else {
+    $null
+}
+$validationArtifacts = if ($usesTemporaryArtifacts) {
+    Join-Path $validationRoot 'artifacts'
+} else {
+    [System.IO.Path]::GetFullPath((Join-Path $repositoryRoot $ArtifactsPath))
+}
 $plugins = @(
     [PSCustomObject]@{
         Project = 'plugins\KeyboardMouse\KeyboardTest.csproj'
@@ -140,7 +151,7 @@ try {
 }
 finally {
     Pop-Location
-    if (Test-Path -LiteralPath $validationRoot) {
+    if ($usesTemporaryArtifacts -and (Test-Path -LiteralPath $validationRoot)) {
         Remove-Item -LiteralPath $validationRoot -Recurse -Force
     }
 }

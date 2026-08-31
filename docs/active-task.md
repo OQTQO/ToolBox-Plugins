@@ -30,6 +30,7 @@
 - 两个插件迁移到 Manifest v2 与平台能力目录；插件没有定义自己的权限语义。
 - `New-PluginPackage.ps1` 强制使用 DER 证书和 PKCS#8 RSA 私钥生成 `signature.json`；包校验验证证书有效期、发布者绑定和 RSA-SHA256 签名。
 - Release workflow 从受保护 secret 读取证书与私钥，缺少签名材料会直接停止发布；普通验证使用一次性测试密钥，不产生可发布身份。
+- Release workflow 复用验证脚本显式保留的隔离构建产物，不再依赖会被清理或不存在的项目 `bin` 目录。
 - SDK 升级到 0.4.0；插件、测试和 CI 统一迁移到 .NET 10，旧插件二进制与未签名包不再兼容，符合“插件服从软件”的规则。
 - 使用 `global.json` 固定 SDK 10.0.400；KeyboardMouse 升至 0.2.3，AudioRelay 升至 0.3.1，未保留 net8 或旧 SDK 分支。
 

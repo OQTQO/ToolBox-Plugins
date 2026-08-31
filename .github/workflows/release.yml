@@ -45,7 +45,7 @@ jobs:
 
       - name: Restore and build
         shell: pwsh
-        run: .\tools\Validate-Plugins.ps1
+        run: .\tools\Validate-Plugins.ps1 -ArtifactsPath .release-build
 
       - name: Package plugins
         shell: pwsh
@@ -72,14 +72,14 @@ jobs:
           $audioRelayVersion = [string]$audioRelayManifest.version
           New-Item -ItemType Directory -Path .\artifacts -Force | Out-Null
           .\tools\New-PluginPackage.ps1 `
-            -RuntimeDirectory .\plugins\KeyboardMouse\bin\Release\net10.0 `
+            -RuntimeDirectory .\.release-build\bin\KeyboardTest\release `
             -ManifestPath .\plugins\KeyboardMouse\manifest.json `
             -PackageName "KeyboardMouse-$keyboardVersion.tpk" `
             -OutputDirectory .\artifacts `
             -SigningCertificatePath $signingCertificatePath `
             -SigningPrivateKeyPath $signingPrivateKeyPath
           .\tools\New-PluginPackage.ps1 `
-            -RuntimeDirectory .\plugins\AudioRelay\bin\Release\net10.0-windows10.0.19041.0 `
+            -RuntimeDirectory .\.release-build\bin\AudioRelay\release `
             -ManifestPath .\plugins\AudioRelay\manifest.json `
             -PackageName "PhoneAudioRelay-$audioRelayVersion.tpk" `
             -OutputDirectory .\artifacts `
