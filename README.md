@@ -15,7 +15,7 @@
 
 ## 开发环境
 
-安装 `global.json` 指定的 .NET 10 SDK。从 ToolBox 主仓库的 GitHub Release 下载 `ToolBox-PluginDevKit`，解压后把其中的 `ToolBox.PluginSdk.0.4.0.nupkg` 放入本仓库的 `sdk/` 目录。然后运行：
+安装 `global.json` 指定的 .NET 10 SDK。从 [ToolBox v0.5.0 Release](https://github.com/OQTQO/ToolBox/releases/tag/v0.5.0) 下载 `ToolBox-PluginDevKit-0.5.0.zip`，解压后把其中的 `ToolBox.PluginSdk.0.5.0.nupkg` 放入本仓库的 `sdk/` 目录。当前仓库主线和新插件开发统一使用 ToolBox v0.5.0 / SDK 0.5.0；GitHub 已发布的 v0.4.0 包仍作为历史资产保留。然后运行：
 
 ```powershell
 dotnet restore .\ToolBox-Plugins.sln --configfile .\NuGet.config

@@ -16,7 +16,7 @@
 - ToolBox 软件仓库是平台实现、SDK、Manifest、Worker 协议、安装格式和通用 UI 契约的唯一权威源。
 - 插件与软件发生冲突时必须修改插件以适配软件，不得要求 Host 增加插件专用分支。
 - 默认服从插件声明支持的 ToolBox Release、SDK 和 DevKit；适配未发布软件时必须在当前任务中记录准确的软件 commit 或 tag。
-- 插件目标框架和 SDK 版本必须符合 `docs/compatibility.md`；当前统一使用 .NET 10 / SDK 0.4.0，不保留旧框架分支。
+- 插件目标框架和 SDK 版本必须符合 `docs/compatibility.md`；当前仓库主线使用 .NET 10 / SDK 0.5.0，不保留旧框架分支。GitHub 上已有的 v0.4.0 插件包仍是历史发布资产，不代表当前主线基线。
 - 第三方依赖只能通过 `ToolBox.PluginSdk` 和插件自己的依赖进入包。
 - 必须实现 `IPlugin`，Manifest 必须合法并声明 `outOfProcess`。
 - 插件 UI 只能使用 SDK 的通用 UI 协议，不引用 WPF 或 ToolBox Host 类型。

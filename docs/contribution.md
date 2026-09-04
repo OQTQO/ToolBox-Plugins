@@ -1,6 +1,6 @@
 # 插件提交规范
 
-朋友可以 Fork `ToolBox-Plugins`，在 `plugins/<PluginName>/` 新增插件，并提供 Manifest、README、项目文件和必要测试。
+朋友可以 Fork `ToolBox-Plugins`，以 ToolBox v0.5.0 / `ToolBox.PluginSdk` 0.5.0 为开发基线，在 `plugins/<PluginName>/` 新增插件，并提供 Manifest、README、项目文件和必要测试。SDK 包和开发文档从 [ToolBox v0.5.0 Release](https://github.com/OQTQO/ToolBox/releases/tag/v0.5.0) 获取。
 
 ## 提交前检查
 

@@ -2,9 +2,12 @@
 
 本文件记录插件仓库与 ToolBox 平台的公开兼容边界。ToolBox 软件仓库是平台契约的权威源，具体行为以目标软件 Release、发布的 SDK/DevKit、兼容性测试和 `docs/plugin-api-v1.md` 为准；发生冲突时插件适配软件。
 
-| 项目 | 当前要求 |
+当前开发边界：仓库主线以 ToolBox v0.5.0 / `ToolBox.PluginSdk` 0.5.0 为构建基线；GitHub 已发布插件批次仍是 v0.4.0 / SDK 0.4.0 的历史资产。新插件必须按 v0.5.0 DevKit 构建，不能从旧包或旧 SDK 推断当前兼容性。
+
+| 项目 | 当前开发基线 |
 | --- | --- |
-| SDK 包 | `ToolBox.PluginSdk` 0.4.0 |
+| SDK 包 | `ToolBox.PluginSdk` 0.5.0 |
+| 对应 ToolBox Release | v0.5.0 |
 | 目标框架 | .NET 10；插件必须按目标 ToolBox Release 重建 |
 | Plugin API | Major 1 |
 | 运行模式 | 必须支持 `outOfProcess` |
@@ -21,6 +24,8 @@
 2. 发布新的 SDK/DevKit 和平台版本。
 3. 插件仓库更新 NuGet 版本，构建、测试和打包。
 4. 在插件 README 或发布说明中记录最低 ToolBox 版本。
+
+现有 v0.4.0 插件包的兼容声明保持不变；本仓库主线源码和新插件开发使用 v0.5.0，插件包是否发布新批次必须另行完成构建、测试、签名和 Host 烟雾验证。
 
 联合开发尚未发布的平台能力时，插件任务记录必须写明软件仓库 commit 或 tag；未记录时不得默认追随软件仓库 `main` 的临时行为。
 

@@ -1,58 +1,41 @@
 # 当前任务
 
-状态：平台适配与 .NET 10 最终迁移完成；插件批次 v0.4.0 已发布。
+状态：进行中（适配 ToolBox v0.5.0 插件开发基线）
 
 ## 任务
 
-- 编号：2026-08-30-plugin-hardening
-- 目标：服从 ToolBox 软件契约，修正发布版本一致性，补齐插件测试和包产物校验。
-- 上游软件：ToolBox 0.4.0 / .NET 10 / Plugin API v1 / Manifest v2 / package format 2 / ToolBox.PluginSdk 0.4.0。
-- 权威源：软件仓库的平台实现、兼容性测试、已发布 SDK 和协议文档。
+- 编号：2026-09-04-cross-repo-plugin-sdk-0-5-0
+- 目标：让插件仓库 `main` 成为基于 ToolBox v0.5.0 / `ToolBox.PluginSdk` 0.5.0 的可复用开发基线，供其他开发者按 GitHub 文档创建和维护插件。
+- 上游软件：ToolBox v0.5.0，标签提交 `9d1559e4df3da77b9911ae937580e73f85356e1c`；当前软件 `main` 为 `5137c915ebf31c1afb4ea5d2feeb27f62f046d80`。
+- 范围：SDK 本地 NuGet 包、集中版本属性、插件开发 README、贡献规范、兼容矩阵、AI 入口、恢复脚本和任务记录；不改变两个插件自身版本号和业务契约。
+- 变更基线：本地提交 `713204a` 尚未推送；其后的 `AI.md`、`README.md`、本文件、`docs/compatibility.md` 和 `tools/Get-ProjectContext.ps1` 未提交修改属于既有交接工作，本任务继续保留并整理。
+- 分支决定：保留当前 `main`，完成审查后提交并推送；用户已明确授权同步 GitHub。
+- 验收：SDK 0.5.0 可还原，插件构建/测试/包校验通过，恢复摘要不再报告 SDK 版本漂移，GitHub `main` 包含完整开发说明。
 
-## 约束
+## 决策
 
-- 插件与软件冲突时修改插件，不给 Host 增加插件专用分支。
-- 每个插件保持独立版本；仓库 Release tag 只表示发布批次。
-- `.tpk` 必须声明平台能力、携带有效签名且不包含私有 ToolBox.PluginSdk DLL；不兼容旧包。
+- 现有 GitHub 发布包仍准确标记为 v0.4.0 / SDK 0.4.0；本次更新的是仓库 `main` 的开发基线，不把旧包改称 v0.5.0。
+- 两个插件的独立版本号保持 KeyboardMouse 0.2.3、AudioRelay 0.3.1；是否发布新的插件包批次另按发布任务处理。
+- SDK 0.5.0 从 ToolBox v0.5.0 DevKit 获取并校验，不直接引用软件源码。
 
-## 已完成
+## 验证
 
-- 在插件 AI 入口和兼容矩阵中明确软件仓库是平台契约权威源。
-- 上下文导出增加工作区规则、兼容矩阵、软件 Git HEAD 和 SDK 版本。
-- SDK 版本集中到 `Directory.Build.props`。
-- 修复 Release tag 覆盖所有插件 Manifest 版本的问题，保持插件独立版本。
-- 构建后校验 Manifest、项目和程序集版本一致。
-- 新增 KeyboardMouse 测试项目和 4 项状态/UI 输入测试。
-- 新增 `.tpk` 路径、文件清单、SDK DLL 排除和 SHA-256 校验。
-- CI 连续打包两次并比较 SHA-256，验证可复现性。
-- CI 从中央 SDK 版本构造 DevKit URL，并用软件 Release 校验文件验证下载内容。
-- 新增 `Invoke-ToolBoxHostSmokeTest.ps1`，隔离构建/发布真实 Host 和 Worker、生成两个插件包，并逐包验证安装、启用/UI 快照、停用和卸载。
-- 两个插件迁移到 Manifest v2 与平台能力目录；插件没有定义自己的权限语义。
-- `New-PluginPackage.ps1` 强制使用 DER 证书和 PKCS#8 RSA 私钥生成 `signature.json`；包校验验证证书有效期、发布者绑定和 RSA-SHA256 签名。
-- Release workflow 从受保护 secret 读取证书与私钥，缺少签名材料会直接停止发布；普通验证使用一次性测试密钥，不产生可发布身份。
-- Release workflow 复用验证脚本显式保留的隔离构建产物，不再依赖会被清理或不存在的项目 `bin` 目录。
-- 新增仓库级 `AGENTS.md` 自动恢复入口；上下文脚本默认提取现有任务文档摘要，`-Full` 才输出完整内容，并在 Windows PowerShell 5.1 下可靠定位软件权威仓库。
-- SDK 升级到 0.4.0；插件、测试和 CI 统一迁移到 .NET 10，旧插件二进制与未签名包不再兼容，符合“插件服从软件”的规则。
-- 使用 `global.json` 固定 SDK 10.0.400；KeyboardMouse 升至 0.2.3，AudioRelay 升至 0.3.1，未保留 net8 或旧 SDK 分支。
-
-## 验证结果
-
-- `tools/Validate-Plugins.ps1`：在 .NET 10 / SDK 0.4.0 上通过。
-- 严格构建：0 警告、0 错误。
-- AudioRelay：10 项测试通过。
-- KeyboardMouse：4 项测试通过。
-- KeyboardMouse 0.2.3 与 AudioRelay 0.3.1 均通过双次可复现打包、证书/密钥配对和包内签名/哈希验证。
-- `tools/Invoke-ToolBoxHostSmokeTest.ps1 -SoftwareRepository ..\软件`：通过；两个真实 `.tpk` 均完成 Host 全生命周期。联合验证的软件内容现已发布为 `v0.4.0`，提交 `e6a63a5e2c0471ec4929cf0c84016b7046ad3264`。
-- Manifest v2 签名包复现性、签名验证和真实 Host TOFU 信任链路通过；插件测试仍为 KeyboardMouse 4 项、AudioRelay 10 项。
-- GitHub workflow YAML 解析、上下文导出和 `git diff --check`：通过。
-- 根目录统一恢复、软件独立恢复和插件独立恢复的默认摘要与 `-Full` 完整视图均执行通过；插件独立默认输出由 8,502 字符降至 1,316 字符，SDK 版本和 Git 状态可自动核对。
+- 已下载并按 ToolBox v0.5.0 `SHA256SUMS-v0.5.0.txt` 校验 DevKit；SDK nupkg 已放入本地 `sdk/` feed。
+- `dotnet restore ToolBox-Plugins.sln`：通过；因环境网络策略使用已验证缓存和公开 NuGet 依赖。
+- 严格构建：SDK 0.5.0、两个插件和两个测试项目 0 警告、0 错误。
+- 插件测试：KeyboardMouse 4/4、AudioRelay 10/10 通过。
+- 双次确定性打包：两个插件包 SHA-256 一致；Manifest、签名、包哈希、路径安全和 SDK DLL 排除校验通过。
+- `Invoke-ToolBoxHostSmokeTest.ps1 -SoftwareRepository ..\软件`：通过；两个插件均完成真实 Host 安装、启用/UI、停用和卸载。
+- 恢复脚本和 `git diff --check`：通过；上下文已显示软件与插件 SDK 均为 0.5.0。
 
 ## 已知边界
 
-- 本地跨仓库签名烟雾链路已完成；CI 从软件精确版本标签 `v0.4.0` 下载 DevKit 与校验清单，不依赖软件 `main`。
-- GitHub Actions 仍使用主版本 tag，尚未固定为完整 commit SHA。
+- 本次不自动发布新的插件 GitHub Release；已有 v0.4.0 包继续作为历史发布资产。
+- Worker 仍是进程隔离而非 Windows 权限沙箱；商城和自动更新不在本任务范围。
+- 两个仓库继续独立提交、验证和发布；插件不得直接引用软件源码。
 
 ## 下一步
 
-1. 本阶段无剩余实施项；后续需求另建任务。
-2. 后续维护阶段将 GitHub Actions 固定到经过核验的完整 commit SHA。
+1. 审查差异并提交、推送插件开发基线。
+2. 其他开发者从 GitHub `main` 和 ToolBox v0.5.0 DevKit 开始开发新插件。
+3. 新插件包发布另建发布任务；现有 v0.4.0 Release 资产保持不变。

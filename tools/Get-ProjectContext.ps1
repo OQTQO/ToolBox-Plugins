@@ -54,6 +54,10 @@ $sdkProjectPath = Join-Path $softwareRepo 'src\ToolBox.PluginSdk\ToolBox.PluginS
 if (Test-Path -LiteralPath $sdkProjectPath) {
     Write-Host "`n=== authoritative software ==="
     git -C $softwareRepo log -1 --oneline --decorate
+    $softwareReleaseTag = [string](git -C $softwareRepo describe --tags --abbrev=0 2>$null | Select-Object -First 1)
+    if (-not [string]::IsNullOrWhiteSpace($softwareReleaseTag)) {
+        Write-Host "ToolBox latest Release tag: $softwareReleaseTag"
+    }
     [xml]$sdkProject = Get-Content -LiteralPath $sdkProjectPath -Raw -Encoding UTF8
     $sdkVersion = $sdkProject.Project.PropertyGroup.PackageVersion | Select-Object -First 1
     Write-Host "ToolBox.PluginSdk package version: $sdkVersion"
