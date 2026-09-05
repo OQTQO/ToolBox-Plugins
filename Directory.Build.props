@@ -7,6 +7,6 @@
     <DebugType>portable</DebugType>
     <EnableNETAnalyzers>true</EnableNETAnalyzers>
     <AnalysisLevel>latest-recommended</AnalysisLevel>
-    <ToolBoxPluginSdkVersion>0.5.0</ToolBoxPluginSdkVersion>
+    <ToolBoxPluginSdkVersion>0.6.0</ToolBoxPluginSdkVersion>
   </PropertyGroup>
 </Project>

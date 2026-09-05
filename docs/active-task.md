@@ -1,5 +1,29 @@
 # 当前任务
 
+状态：已完成（2026-09-05）
+
+## 任务
+
+- 编号：2026-09-05-audio-relay-v1
+- 目标：交付基于 ToolBox v0.6.0 / `ToolBox.PluginSdk` 0.6.0、Plugin API major 1、Manifest v2、Worker protocol 1 的新版音频流转插件。
+- 范围：只修改 `插件/`；保留 Windows A2DP 平台连接实现，更新正式版本 Manifest、公共 UI、测试、README 和包验证。
+- 软件基线：ToolBox `codex/toolbox-0.6.0-plugin-docs`，commit `5662fe4`。
+
+## 验证
+
+- SDK 0.6.0 已从软件 commit `5662fe4` 生成到插件 `sdk/` feed。
+- Release 还原、构建和测试通过：0 警告、0 错误；AudioRelay 10/10，KeyboardMouse 4/4。
+- Manifest v2、Plugin API major 1、outOfProcess 和版本一致性检查通过；`git diff --check` 通过。
+- 正式包 `artifacts/AudioRelay-v1/AudioRelay-1.0.0.tpk` 已签名并通过包校验；SHA-256：`93F87B40BDFE95DCB86F075F4545036B45215901E1C730B738802FE14D59F6AB`。
+- 后续优化：`StartAsync` 幂等、停止失败可恢复、设备文案统一为中文，并新增重复启动回归测试；全部插件测试 15/15 通过。
+- 交付优化：连接代次过滤旧 Windows 连接事件，连接打开增加 30 秒超时，补充连接事件清理；最终 AudioRelay 测试 11/11 通过。
+- 最终签名包 `artifacts/AudioRelay-final/AudioRelay-1.0.0.tpk` 已通过校验；SHA-256：`4FBA474E1955DFA06A9B958C9622DFD9880F6EE1ABC140216C5FDD357B8F1F54`。
+
+## 已知边界
+
+- 仍只接收 Windows 蓝牙 A2DP 媒体音频，不处理 HFP 通话、麦克风或逐应用混音。
+- 未将证书、私钥或签名材料加入 Git；签名脚本在 Windows PowerShell 5 不兼容 PKCS#8，已使用 PowerShell 7 完成签名。
+
 状态：已完成（2026-09-04）
 
 ## 任务

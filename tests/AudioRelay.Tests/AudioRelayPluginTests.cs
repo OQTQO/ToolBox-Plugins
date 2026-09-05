@@ -7,6 +7,20 @@ namespace AudioRelay.Tests;
 public sealed class AudioRelayPluginTests
 {
     [Fact]
+    public async Task StartingAnAlreadyStartedPluginIsIdempotent()
+    {
+        var platform = new FakeAudioRelayPlatform([]);
+        await using var plugin = new AudioRelayPlugin.AudioRelayPlugin(platform);
+        using var context = new TestPluginContext(plugin.Id);
+
+        await plugin.StartAsync(context, CancellationToken.None);
+        await plugin.StartAsync(context, CancellationToken.None);
+
+        Assert.Equal(1, platform.DiscoveryCount);
+        Assert.Equal(AudioRelayStatus.Ready, plugin.Snapshot.Status);
+    }
+
+    [Fact]
     public async Task WindowsPlatformProbesPairedSourcesWithoutOpeningAConnection()
     {
         using var platform = new WindowsAudioRelayPlatform();
@@ -46,7 +60,7 @@ public sealed class AudioRelayPluginTests
 
         Assert.Equal("phone-1", platform.ConnectedDeviceId);
         Assert.Equal(AudioRelayStatus.Streaming, plugin.Snapshot.Status);
-        Assert.Contains("Windows mix", plugin.Snapshot.StatusMessage, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("Windows", plugin.Snapshot.StatusMessage, StringComparison.OrdinalIgnoreCase);
 
         await plugin.DisconnectAsync(CancellationToken.None);
 
@@ -61,7 +75,7 @@ public sealed class AudioRelayPluginTests
     }
 
     [Fact]
-    public async Task UiProviderExposesSearchRefreshPerDeviceConnectAndDisconnectActions()
+    public async Task UiProviderExposesRefreshPerDeviceConnectAndDisconnectActions()
     {
         var platform = new FakeAudioRelayPlatform(
         [
@@ -74,13 +88,13 @@ public sealed class AudioRelayPluginTests
         await plugin.StartAsync(context, CancellationToken.None);
 
         var readyActions = plugin.GetSnapshot().Actions;
-        Assert.Contains(readyActions, action => action.Id == "search");
-        Assert.Contains(readyActions, action => action.Id == "refresh");
+        Assert.Single(readyActions, action => action.Id == "refresh");
+        Assert.Equal("刷新", readyActions.Single(action => action.Id == "refresh").Label);
         var connectAction = Assert.Single(
             readyActions,
             action => action.Id == "connect" && action.Argument == "phone-1");
 
-        await plugin.ExecuteAsync("search", null, CancellationToken.None);
+        await plugin.ExecuteAsync("refresh", null, CancellationToken.None);
         await plugin.ExecuteAsync(connectAction.Id, connectAction.Argument, CancellationToken.None);
 
         Assert.Equal(AudioRelayStatus.Streaming, plugin.Snapshot.Status);
@@ -140,7 +154,7 @@ public sealed class AudioRelayPluginTests
 
         Assert.Equal(AudioRelayStatus.Error, plugin.Snapshot.Status);
         Assert.Equal("AUDIO_RELAY_DISCOVERY_DENIED", plugin.Snapshot.ErrorCode);
-        Assert.Contains(plugin.GetSnapshot().Actions, action => action.Id == "search");
+        Assert.Contains(plugin.GetSnapshot().Actions, action => action.Id == "refresh");
 
         platform.DiscoveryException = null;
         await plugin.SearchDevicesAsync(CancellationToken.None);
@@ -242,7 +256,7 @@ public sealed class AudioRelayPluginTests
         platform.CloseFromPhone();
 
         Assert.Equal(AudioRelayStatus.Ready, plugin.Snapshot.Status);
-        Assert.Contains("closed", plugin.Snapshot.StatusMessage, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("设备已关闭", plugin.Snapshot.StatusMessage, StringComparison.Ordinal);
     }
 
     private sealed class FakeAudioRelayPlatform(AudioRelayDevice[] devices) : IAudioRelayPlatform
@@ -267,7 +281,7 @@ public sealed class AudioRelayPluginTests
 
         public TaskCompletionSource DiscoveryStarted { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
 
-        public event Action<AudioRelayTransportState>? StateChanged;
+        public event Action<AudioRelayTransportState, int>? StateChanged;
 
         public async ValueTask<AudioRelayDevice[]> FindDevicesAsync(CancellationToken cancellationToken)
         {
@@ -304,7 +318,7 @@ public sealed class AudioRelayPluginTests
             }
 
             ConnectedDeviceId = deviceId;
-            StateChanged?.Invoke(AudioRelayTransportState.Opened);
+            StateChanged?.Invoke(AudioRelayTransportState.Opened, 1);
             return ValueTask.CompletedTask;
         }
 
@@ -321,7 +335,7 @@ public sealed class AudioRelayPluginTests
         public void CloseFromPhone()
         {
             ConnectedDeviceId = null;
-            StateChanged?.Invoke(AudioRelayTransportState.Closed);
+            StateChanged?.Invoke(AudioRelayTransportState.Closed, 1);
         }
 
         public void Dispose()

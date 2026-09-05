@@ -1,10 +1,10 @@
-# AudioRelay
+# 音频流转
 
-这是一个独立的 Windows 蓝牙 A2DP 手机媒体音频接收插件，不是 ToolBox Host 内置功能。
+这是 ToolBox 的 Windows 蓝牙 A2DP 媒体音频接收插件，不是 ToolBox Host 内置功能。1.0.0 是基于 ToolBox v0.6.0 的正式新版；旧测试版不再维护。
 
 ## 功能
 
-- 搜索已经与 Windows 配对、并支持远程音频播放的手机；
+- 刷新已经与 Windows 配对、并支持远程音频播放的设备；
 - 刷新当前设备列表；
 - 连接指定手机并接收媒体音频；
 - 断开当前手机；
@@ -21,18 +21,18 @@ ToolBox 使用 SDK 的 `IPluginUiProvider` 渲染通用状态卡片和操作按�
 - 手机允许媒体音频通过蓝牙输出；
 - ToolBox 在接收期间保持运行。
 
-“搜索”只会重新发现已经配对且支持 `AudioPlaybackConnection` 的设备，不会替用户完成蓝牙配对。没有设备时，请先在 Windows 蓝牙设置中完成配对，再点击搜索。
+“刷新”只会重新发现已经配对且支持 `AudioPlaybackConnection` 的设备，不会替用户完成蓝牙配对。没有设备时，请先在 Windows 蓝牙设置中完成配对，再点击刷新。
 
 ## 使用流程
 
-1. 在 ToolBox 中安装 `PhoneAudioRelay-<version>.tpk`；
-2. 启用 `Phone Audio Relay`；
-3. 点击 `Search paired phones`；
-4. 在设备按钮中选择手机并点击连接；
+1. 在 ToolBox 中安装 `AudioRelay-<version>.tpk`；
+2. 启用 `音频流转`；
+3. 点击 `刷新`；
+4. 在设备按钮中选择设备并点击连接；
 5. 在手机上播放媒体，声音会进入电脑当前的 Windows 音频混音；
-6. 结束时点击 `Stop receiving`，或停用插件。
+6. 结束时点击 `断开连接`，或停用插件。
 
-启用时插件会执行一次初始搜索，但不会自动连接手机。`Refresh device list` 会再次搜索并尽量保留当前设备。手机主动断开后，可以直接再次连接。
+启用时插件会执行一次初始搜索，但不会自动连接设备。`刷新` 会再次搜索并尽量保留当前设备。设备主动断开后，可以直接再次连接。
 
 ## 音频边界
 
@@ -52,8 +52,8 @@ pwsh -File .\tools\Validate-Plugins.ps1
 pwsh -File .\tools\New-PluginPackage.ps1 `
   -RuntimeDirectory .\plugins\AudioRelay\bin\Release\net10.0-windows10.0.19041.0 `
   -ManifestPath .\plugins\AudioRelay\manifest.json `
-  -Version 0.3.1 `
-  -PackageName PhoneAudioRelay-0.3.1.tpk `
+  -Version 1.0.0 `
+  -PackageName AudioRelay-1.0.0.tpk `
   -OutputDirectory .\artifacts `
   -SigningCertificatePath .\publisher.cer `
   -SigningPrivateKeyPath .\publisher.pk8

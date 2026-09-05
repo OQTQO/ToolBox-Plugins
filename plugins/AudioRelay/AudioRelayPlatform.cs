@@ -17,7 +17,7 @@ internal interface IAudioRelayPlatform : IDisposable
 {
     bool IsSupported { get; }
 
-    event Action<AudioRelayTransportState>? StateChanged;
+    event Action<AudioRelayTransportState, int>? StateChanged;
 
     ValueTask<AudioRelayDevice[]> FindDevicesAsync(CancellationToken cancellationToken);
 
@@ -42,12 +42,14 @@ internal sealed class WindowsAudioRelayPlatform : IAudioRelayPlatform
 {
     private readonly object _gate = new();
     private AudioPlaybackConnection? _connection;
+    private TypedEventHandler<AudioPlaybackConnection, object>? _connectionHandler;
+    private int _connectionGeneration;
     private bool _disposed;
 
     public bool IsSupported => OperatingSystem.IsWindowsVersionAtLeast(10, 0, 19041)
         && ApiInformation.IsTypePresent("Windows.Media.Audio.AudioPlaybackConnection");
 
-    public event Action<AudioRelayTransportState>? StateChanged;
+    public event Action<AudioRelayTransportState, int>? StateChanged;
 
     public async ValueTask<AudioRelayDevice[]> FindDevicesAsync(CancellationToken cancellationToken)
     {
@@ -130,17 +132,23 @@ internal sealed class WindowsAudioRelayPlatform : IAudioRelayPlatform
             ?? throw new AudioRelayPlatformException(
                 "AUDIO_RELAY_DEVICE_UNAVAILABLE",
                 "Windows could not create an audio playback connection for this device.");
+        int generation;
         lock (_gate)
         {
             _connection = connection;
+            generation = ++_connectionGeneration;
         }
 
+        TypedEventHandler<AudioPlaybackConnection, object>? handler = null;
         try
         {
-            connection.StateChanged += OnConnectionStateChanged;
+            handler = (_, _) => OnConnectionStateChanged(connection, generation);
+            _connectionHandler = handler;
+            connection.StateChanged += handler;
             await connection.StartAsync();
             cancellationToken.ThrowIfCancellationRequested();
-            var result = await connection.OpenAsync();
+            var result = await connection.OpenAsync().AsTask().WaitAsync(
+                TimeSpan.FromSeconds(30), cancellationToken).ConfigureAwait(false);
             cancellationToken.ThrowIfCancellationRequested();
             if (result.Status != AudioPlaybackConnectionOpenResultStatus.Success)
             {
@@ -149,11 +157,11 @@ internal sealed class WindowsAudioRelayPlatform : IAudioRelayPlatform
                     "Windows could not open the Bluetooth audio connection.");
             }
 
-            StateChanged?.Invoke(AudioRelayTransportState.Opened);
+            StateChanged?.Invoke(AudioRelayTransportState.Opened, generation);
         }
         catch
         {
-            ReleaseConnection(connection);
+            ReleaseConnection(connection, handler!);
             throw;
         }
     }
@@ -169,12 +177,16 @@ internal sealed class WindowsAudioRelayPlatform : IAudioRelayPlatform
 
         if (connection is not null)
         {
-            connection.StateChanged -= OnConnectionStateChanged;
+            if (_connectionHandler is not null)
+            {
+                connection.StateChanged -= _connectionHandler;
+                _connectionHandler = null;
+            }
             connection.Dispose();
         }
         if (connection is not null)
         {
-            StateChanged?.Invoke(AudioRelayTransportState.Closed);
+            StateChanged?.Invoke(AudioRelayTransportState.Closed, ++_connectionGeneration);
         }
     }
 
@@ -190,7 +202,7 @@ internal sealed class WindowsAudioRelayPlatform : IAudioRelayPlatform
         StateChanged = null;
     }
 
-    private void ReleaseConnection(AudioPlaybackConnection connection)
+    private void ReleaseConnection(AudioPlaybackConnection connection, TypedEventHandler<AudioPlaybackConnection, object> handler)
     {
         lock (_gate)
         {
@@ -200,15 +212,26 @@ internal sealed class WindowsAudioRelayPlatform : IAudioRelayPlatform
             }
         }
 
-        connection.StateChanged -= OnConnectionStateChanged;
+        connection.StateChanged -= handler;
+        if (ReferenceEquals(_connectionHandler, handler))
+        {
+            _connectionHandler = null;
+        }
         connection.Dispose();
     }
 
-    private void OnConnectionStateChanged(AudioPlaybackConnection sender, object args)
+    private void OnConnectionStateChanged(AudioPlaybackConnection sender, int generation)
     {
+        lock (_gate)
+        {
+            if (generation != _connectionGeneration)
+            {
+                return;
+            }
+        }
         StateChanged?.Invoke(sender.State == AudioPlaybackConnectionState.Opened
             ? AudioRelayTransportState.Opened
-            : AudioRelayTransportState.Closed);
+            : AudioRelayTransportState.Closed, generation);
     }
 
     private void EnsureSupported()

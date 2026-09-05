@@ -11,6 +11,7 @@ public sealed class AudioRelayPlugin : IAudioRelayPlugin, IPluginUiProvider
     private AudioRelaySnapshot _snapshot = AudioRelaySnapshot.Disabled();
     private bool _started;
     private bool _disposed;
+    private int _connectionGeneration;
 
     public AudioRelayPlugin()
         : this(new WindowsAudioRelayPlatform())
@@ -47,6 +48,10 @@ public sealed class AudioRelayPlugin : IAudioRelayPlugin, IPluginUiProvider
         try
         {
             cancellationToken.ThrowIfCancellationRequested();
+            if (_started)
+            {
+                return;
+            }
             var lease = context.Resources.Acquire(
                 new ResourceKey("audio.bluetooth.a2dp-sink"),
                 ResourceAccessMode.Exclusive);
@@ -68,7 +73,7 @@ public sealed class AudioRelayPlugin : IAudioRelayPlugin, IPluginUiProvider
                     [],
                     null,
                     null,
-                    "This PC needs Windows 10 version 2004 or later for Bluetooth audio receiving.",
+                    "此电脑需要 Windows 10 版本 2004（build 19041）或更高版本才能接收蓝牙音频。",
                     "AUDIO_RELAY_WINDOWS_UNSUPPORTED",
                     "Start"));
                 return;
@@ -143,39 +148,36 @@ public sealed class AudioRelayPlugin : IAudioRelayPlugin, IPluginUiProvider
     {
         var snapshot = Snapshot;
         var actions = new List<PluginUiAction>();
-        var canSearch = _started && snapshot.Status is (AudioRelayStatus.Ready or AudioRelayStatus.Error);
-        if (canSearch)
+        var canRefresh = _started && snapshot.Status is (AudioRelayStatus.Ready or AudioRelayStatus.Error);
+        if (canRefresh)
         {
             actions.Add(new PluginUiAction(
-                "search",
-                "Search paired phones",
-                Description: "Run a complete Windows Bluetooth audio device discovery."));
-            actions.Add(new PluginUiAction(
                 "refresh",
-                "Refresh device list",
-                Description: "Discover paired phones again and update the current list."));
+                "刷新",
+                Description: "重新读取已配对的媒体音频设备。"));
             actions.AddRange(snapshot.Devices.Select(device => new PluginUiAction(
                 "connect",
-                $"Receive from {device.Name}",
+                $"连接 {device.Name}",
                 device.Id,
-                Description: "Open an A2DP media audio connection to this phone.")));
+                Description: $"连接 {device.Name} 并开始接收音频。")));
         }
 
-        if (_started && snapshot.Status is (AudioRelayStatus.Connecting or AudioRelayStatus.Streaming))
+        if (_started && (snapshot.Status is (AudioRelayStatus.Connecting or AudioRelayStatus.Streaming)
+            || snapshot.Status == AudioRelayStatus.Error && snapshot.SelectedDeviceId is not null))
         {
             actions.Add(new PluginUiAction(
                 "disconnect",
-                "Stop receiving",
-                Description: "Close the current phone audio connection."));
+                "断开连接",
+                Description: "停止接收当前设备的音频。"));
         }
 
         return new PluginUiSnapshot(
             snapshot.StatusMessage,
             [
-                new PluginUiValue("Route", snapshot.Status.ToString()),
-                new PluginUiValue("Selected phone", snapshot.SelectedDeviceName ?? "None"),
-                new PluginUiValue("Paired sources", snapshot.Devices.Length.ToString(CultureInfo.InvariantCulture)),
-                new PluginUiValue("Last operation", snapshot.LastOperation ?? "None")
+                new PluginUiValue("连接状态", ToDisplayStatus(snapshot.Status)),
+                new PluginUiValue("当前设备", snapshot.SelectedDeviceName ?? "未选择"),
+                new PluginUiValue("已配对设备", $"{snapshot.Devices.Length.ToString(CultureInfo.InvariantCulture)} 台"),
+                new PluginUiValue("音频方向", "设备 → 电脑")
             ],
             actions,
             null);
@@ -191,9 +193,6 @@ public sealed class AudioRelayPlugin : IAudioRelayPlugin, IPluginUiProvider
 
         switch (actionId)
         {
-            case "search":
-                await SearchDevicesAsync(cancellationToken).ConfigureAwait(false);
-                break;
             case "refresh":
                 await RefreshDevicesAsync(cancellationToken).ConfigureAwait(false);
                 break;
@@ -211,6 +210,17 @@ public sealed class AudioRelayPlugin : IAudioRelayPlugin, IPluginUiProvider
 
         return GetSnapshot();
     }
+
+    private static string ToDisplayStatus(AudioRelayStatus status) => status switch
+    {
+        AudioRelayStatus.Ready => "未连接",
+        AudioRelayStatus.Connecting => "正在连接",
+        AudioRelayStatus.Streaming => "已连接",
+        AudioRelayStatus.Refreshing => "正在刷新",
+        AudioRelayStatus.Unsupported => "不受支持",
+        AudioRelayStatus.Error => "需要处理",
+        _ => "未启用"
+    };
 
     public ValueTask<PluginUiSnapshot> HandleInputAsync(
         PluginInputEvent input,
@@ -278,10 +288,9 @@ public sealed class AudioRelayPlugin : IAudioRelayPlugin, IPluginUiProvider
             }
             catch (Exception exception)
             {
-                _started = false;
                 PublishFailure(
                     "AUDIO_RELAY_STOP_FAILED",
-                    "Phone audio receiving could not be stopped cleanly.",
+                    "蓝牙音频连接未能正常停止。",
                     exception,
                     "Stop");
                 throw;
@@ -304,8 +313,8 @@ public sealed class AudioRelayPlugin : IAudioRelayPlugin, IPluginUiProvider
         {
             Status = AudioRelayStatus.Refreshing,
             StatusMessage = operation == "Search"
-                ? "Searching for paired phones that support Bluetooth media audio…"
-                : "Refreshing paired Bluetooth audio devices…",
+                ? "正在搜索支持媒体音频的已配对蓝牙设备…"
+                : "正在刷新已配对的蓝牙音频设备…",
             ErrorCode = null,
             LastOperation = operation
         });
@@ -319,8 +328,8 @@ public sealed class AudioRelayPlugin : IAudioRelayPlugin, IPluginUiProvider
                 previous.SelectedDeviceId,
                 StringComparison.Ordinal));
             var message = devices.Length == 0
-                ? "No paired phone is available. Pair it in Windows Bluetooth settings, then search again."
-                : $"Found {devices.Length} paired Bluetooth audio source(s).";
+                ? "没有发现可用设备。请先在 Windows 蓝牙设置中完成配对，然后点击“刷新”。"
+                : $"已发现 {devices.Length} 台已配对蓝牙音频设备。";
 
             Publish(new AudioRelaySnapshot(
                 AudioRelayStatus.Ready,
@@ -370,14 +379,14 @@ public sealed class AudioRelayPlugin : IAudioRelayPlugin, IPluginUiProvider
         if (selected is null)
         {
             throw new InvalidOperationException(
-                "The selected phone is no longer available. Search or refresh the paired device list.");
+                "所选设备已不可用，请刷新已配对设备列表后重试。");
         }
 
         var current = Snapshot;
         if (current.Status is AudioRelayStatus.Connecting or AudioRelayStatus.Streaming)
         {
             throw new InvalidOperationException(
-                "A phone audio connection is already active. Disconnect it before connecting another phone.");
+                "已有蓝牙音频连接，请先断开当前设备。");
         }
 
         Publish(current with
@@ -412,7 +421,7 @@ public sealed class AudioRelayPlugin : IAudioRelayPlugin, IPluginUiProvider
                 Publish(Snapshot with
                 {
                     Status = AudioRelayStatus.Ready,
-                    StatusMessage = "The connection attempt was canceled. The phone remains available to connect again.",
+                    StatusMessage = "连接操作已取消，可以再次尝试连接该设备。",
                     ErrorCode = null,
                     LastOperation = "Connect canceled"
                 });
@@ -439,11 +448,12 @@ public sealed class AudioRelayPlugin : IAudioRelayPlugin, IPluginUiProvider
 
         try
         {
+            _connectionGeneration++;
             _platform.Disconnect();
             Publish(current with
             {
                 Status = AudioRelayStatus.Ready,
-                StatusMessage = "Phone audio receiving stopped. The paired device remains available.",
+                StatusMessage = "蓝牙音频接收已停止，已配对设备仍可用。",
                 ErrorCode = null,
                 LastOperation = "Disconnect"
             });
@@ -452,7 +462,7 @@ public sealed class AudioRelayPlugin : IAudioRelayPlugin, IPluginUiProvider
         {
             PublishFailure(
                 "AUDIO_RELAY_DISCONNECT_FAILED",
-                "Phone audio receiving could not be stopped cleanly.",
+                "蓝牙音频连接未能正常断开。",
                 exception,
                 "Disconnect");
             throw;
@@ -476,7 +486,7 @@ public sealed class AudioRelayPlugin : IAudioRelayPlugin, IPluginUiProvider
         }
     }
 
-    private void OnPlatformStateChanged(AudioRelayTransportState state)
+    private void OnPlatformStateChanged(AudioRelayTransportState state, int generation)
     {
         var current = Snapshot;
         if (!_started)
@@ -489,7 +499,7 @@ public sealed class AudioRelayPlugin : IAudioRelayPlugin, IPluginUiProvider
             Publish(current with
             {
                 Status = AudioRelayStatus.Streaming,
-                StatusMessage = $"Receiving media audio from {current.SelectedDeviceName ?? "the phone"}. PC audio remains in the Windows mix.",
+                StatusMessage = $"正在接收来自 {current.SelectedDeviceName ?? "该设备"} 的媒体音频。电脑声音仍会通过 Windows 混音输出。",
                 ErrorCode = null,
                 LastOperation = "Connect"
             });
@@ -499,7 +509,7 @@ public sealed class AudioRelayPlugin : IAudioRelayPlugin, IPluginUiProvider
             Publish(current with
             {
                 Status = AudioRelayStatus.Ready,
-                StatusMessage = "The phone closed the Bluetooth audio connection. Select it and connect again.",
+                StatusMessage = "设备已关闭蓝牙音频连接，请重新选择设备并连接。",
                 ErrorCode = null,
                 LastOperation = "Remote disconnect"
             });
@@ -540,7 +550,7 @@ public sealed class AudioRelayPlugin : IAudioRelayPlugin, IPluginUiProvider
     {
         if (!_started)
         {
-            throw new InvalidOperationException("Enable the Phone Audio Relay plugin before using it.");
+            throw new InvalidOperationException("请先启用音频流转插件。");
         }
     }
 

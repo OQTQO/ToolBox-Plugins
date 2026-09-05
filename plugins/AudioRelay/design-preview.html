@@ -1,0 +1,598 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>音频流转 · 公共 UI 契约预览</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --canvas: #e7eee7;
+      --surface: #fbfcf8;
+      --surface-raised: #f1f5ef;
+      --text: #182019;
+      --muted: #6e786f;
+      --line: #d2dbd1;
+      --line-strong: #aebaae;
+      --accent: #c8ff32;
+      --accent-deep: #83b500;
+      --error: #a43f31;
+      --shadow: 0 24px 70px rgba(35, 49, 37, .15);
+      font-family: "Segoe UI Variable Text", "Microsoft YaHei UI", "Segoe UI", sans-serif;
+      font-size: 14px;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      min-width: 320px;
+      min-height: 100vh;
+      margin: 0;
+      color: var(--text);
+      background: var(--canvas);
+    }
+
+    button, select { font: inherit; }
+
+    button {
+      color: inherit;
+      cursor: pointer;
+    }
+
+    button:focus-visible, select:focus-visible {
+      outline: 3px solid rgba(131, 181, 0, .5);
+      outline-offset: 2px;
+    }
+
+    .preview-bar {
+      display: flex;
+      align-items: end;
+      justify-content: space-between;
+      gap: 24px;
+      max-width: 1080px;
+      margin: 0 auto;
+      padding: 28px 24px 18px;
+    }
+
+    .eyebrow {
+      margin: 0;
+      color: var(--muted);
+      font-size: 11px;
+      font-weight: 800;
+      letter-spacing: .1em;
+      text-transform: uppercase;
+    }
+
+    .preview-bar h1 {
+      margin: 7px 0 0;
+      font-size: clamp(24px, 4vw, 36px);
+      line-height: 1;
+      letter-spacing: -.04em;
+    }
+
+    .preview-bar p {
+      max-width: 560px;
+      margin: 10px 0 0;
+      color: var(--muted);
+      line-height: 1.55;
+    }
+
+    .preview-controls {
+      display: grid;
+      gap: 7px;
+      min-width: 190px;
+    }
+
+    .preview-controls label {
+      color: var(--muted);
+      font-size: 11px;
+      font-weight: 700;
+    }
+
+    .preview-controls select {
+      min-height: 38px;
+      padding: 0 11px;
+      color: var(--text);
+      background: var(--surface);
+      border: 1px solid var(--line-strong);
+      border-radius: 9px;
+    }
+
+    .mapping-note {
+      max-width: 1080px;
+      margin: 0 auto 16px;
+      padding: 0 24px;
+      color: var(--muted);
+      font-size: 12px;
+    }
+
+    .mapping-note code {
+      padding: 2px 5px;
+      color: var(--text);
+      background: rgba(255, 255, 255, .58);
+      border: 1px solid var(--line);
+      border-radius: 5px;
+    }
+
+    .host-window {
+      display: flex;
+      max-width: 1080px;
+      min-height: 730px;
+      margin: 0 auto 48px;
+      overflow: hidden;
+      background: #dce5dc;
+      border: 1px solid rgba(75, 95, 76, .22);
+      border-radius: 16px;
+      box-shadow: var(--shadow);
+    }
+
+    .host-underlay {
+      flex: 1;
+      padding: 26px;
+      opacity: .58;
+    }
+
+    .underlay-title {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding-bottom: 18px;
+      border-bottom: 1px solid rgba(93, 113, 94, .25);
+    }
+
+    .underlay-title strong { font-size: 17px; }
+
+    .underlay-title span {
+      color: var(--muted);
+      font-size: 11px;
+    }
+
+    .underlay-nav {
+      display: grid;
+      gap: 9px;
+      width: 150px;
+      margin-top: 28px;
+    }
+
+    .underlay-nav span {
+      height: 35px;
+      padding: 9px 11px;
+      color: #657066;
+      background: rgba(255, 255, 255, .38);
+      border-radius: 7px;
+    }
+
+    .underlay-nav span:first-child {
+      color: var(--text);
+      background: rgba(200, 255, 50, .68);
+    }
+
+    .details-drawer {
+      width: min(520px, 100%);
+      background: var(--surface);
+      border-left: 2px solid var(--line-strong);
+    }
+
+    .drawer-header {
+      display: flex;
+      justify-content: space-between;
+      gap: 16px;
+      padding: 22px 22px 18px;
+      border-bottom: 1px solid var(--line);
+    }
+
+    .drawer-header h2 {
+      margin: 7px 0 0;
+      font-size: 32px;
+      line-height: 1;
+      letter-spacing: -.05em;
+    }
+
+    .drawer-header p {
+      margin: 7px 0 0;
+      color: var(--muted);
+      font-size: 12px;
+    }
+
+    .close-button {
+      display: grid;
+      place-items: center;
+      width: 36px;
+      height: 36px;
+      padding: 0;
+      color: var(--muted);
+      background: transparent;
+      border: 1px solid transparent;
+      border-radius: 8px;
+      font-size: 24px;
+      line-height: 1;
+    }
+
+    .close-button:hover { color: var(--text); background: var(--surface-raised); }
+
+    .drawer-body {
+      padding: 19px 22px 28px;
+    }
+
+    .lifecycle-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 14px;
+    }
+
+    .lifecycle-state {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 700;
+    }
+
+    .state-dot {
+      width: 8px;
+      height: 8px;
+      background: var(--accent-deep);
+      border-radius: 50%;
+      box-shadow: 0 0 0 3px rgba(131, 181, 0, .13);
+    }
+
+    .runtime-actions {
+      display: flex;
+      gap: 8px;
+    }
+
+    .button {
+      min-height: 36px;
+      padding: 0 13px;
+      border: 1px solid var(--line-strong);
+      border-radius: 8px;
+      font-weight: 700;
+    }
+
+    .button-primary {
+      background: var(--accent);
+      border-color: #b9ed2b;
+    }
+
+    .button-quiet {
+      background: var(--surface);
+    }
+
+    .button:hover { filter: brightness(.98); border-color: #7d8d7e; }
+
+    .tabs {
+      display: flex;
+      gap: 4px;
+      margin: 20px 0 20px;
+      overflow-x: auto;
+      scrollbar-width: none;
+    }
+
+    .tabs::-webkit-scrollbar { display: none; }
+
+    .tab {
+      flex: 0 0 auto;
+      min-height: 34px;
+      padding: 0 12px;
+      color: var(--muted);
+      background: transparent;
+      border: 1px solid transparent;
+      border-radius: 7px;
+      font-size: 12px;
+      font-weight: 800;
+    }
+
+    .tab.active {
+      color: var(--text);
+      background: var(--accent);
+      border-color: #b9ed2b;
+    }
+
+    .section-title {
+      margin: 0;
+      font-size: 18px;
+      letter-spacing: -.02em;
+    }
+
+    .status-message {
+      margin: 9px 0 0;
+      color: var(--muted);
+      font-size: 13px;
+      line-height: 1.6;
+    }
+
+    .value-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 8px;
+      margin-top: 18px;
+    }
+
+    .value-card {
+      min-height: 76px;
+      padding: 12px;
+      background: var(--surface-raised);
+      border: 1px solid var(--line);
+      border-radius: 9px;
+    }
+
+    .value-label {
+      color: var(--muted);
+      font-size: 11px;
+      font-weight: 800;
+      letter-spacing: .02em;
+    }
+
+    .value-text {
+      margin-top: 6px;
+      font-size: 14px;
+      font-weight: 800;
+      line-height: 1.35;
+      overflow-wrap: anywhere;
+    }
+
+    .actions {
+      display: grid;
+      gap: 8px;
+      margin-top: 16px;
+    }
+
+    .action-button {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      width: 100%;
+      min-height: 46px;
+      padding: 0 14px;
+      text-align: left;
+      background: var(--surface);
+      border: 1px solid var(--line-strong);
+      border-radius: 8px;
+      font-weight: 800;
+    }
+
+    .action-button:hover:not(:disabled) {
+      background: var(--surface-raised);
+      border-color: var(--accent-deep);
+    }
+
+    .action-button:disabled {
+      cursor: not-allowed;
+      opacity: .46;
+    }
+
+    .action-arrow {
+      color: var(--muted);
+      font-size: 18px;
+      font-weight: 400;
+    }
+
+    .contract-footnote {
+      margin-top: 16px;
+      padding: 12px 13px;
+      color: var(--muted);
+      background: var(--surface-raised);
+      border-left: 3px solid var(--accent-deep);
+      border-radius: 0 8px 8px 0;
+      font-size: 12px;
+      line-height: 1.55;
+    }
+
+    .contract-footnote strong { color: var(--text); }
+
+    @media (max-width: 760px) {
+      .preview-bar { align-items: stretch; flex-direction: column; padding: 24px 16px 16px; }
+      .preview-controls { width: 100%; }
+      .mapping-note { padding: 0 16px; }
+      .host-window { display: block; margin: 0 12px 28px; border-radius: 12px; }
+      .host-underlay { display: none; }
+      .details-drawer { width: 100%; border-left: 0; }
+      .drawer-header, .drawer-body { padding-left: 18px; padding-right: 18px; }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after { scroll-behavior: auto !important; transition-duration: .01ms !important; }
+    }
+  </style>
+</head>
+<body>
+  <header class="preview-bar">
+    <div>
+      <p class="eyebrow">HTML 交互预览 · ToolBox PluginUiSnapshot</p>
+      <h1>音频流转操作页</h1>
+      <p>按公共 UI 契约模拟状态文案、状态值和操作按钮。设备列表不使用插件专属控件，设备连接入口以带参数的 Action 呈现。</p>
+    </div>
+    <div class="preview-controls">
+      <label for="preview-state">预览运行状态</label>
+      <select id="preview-state">
+        <option value="ready">已配对，未连接</option>
+        <option value="empty">没有可用设备</option>
+        <option value="connecting">正在连接</option>
+        <option value="streaming">正在流转</option>
+        <option value="error">刷新失败</option>
+      </select>
+    </div>
+  </header>
+
+  <p class="mapping-note">当前预览只模拟 <code>StatusMessage</code>、<code>Values</code>、<code>Actions</code>；搜索和刷新已合并为唯一操作：<code>刷新</code>。</p>
+
+  <main class="host-window" aria-label="ToolBox 插件详情预览">
+    <aside class="host-underlay" aria-hidden="true">
+      <div class="underlay-title">
+        <strong>桌面工具管理</strong>
+        <span>插件</span>
+      </div>
+      <div class="underlay-nav">
+        <span>概览</span>
+        <span>插件</span>
+        <span>活动</span>
+        <span>设置</span>
+      </div>
+    </aside>
+
+    <section class="details-drawer">
+      <header class="drawer-header">
+        <div>
+          <p class="eyebrow">插件详情</p>
+          <h2>音频流转</h2>
+          <p>ToolBox 官方 · 正式版预览</p>
+        </div>
+        <button class="close-button" type="button" aria-label="关闭详情">×</button>
+      </header>
+
+      <div class="drawer-body">
+        <div class="lifecycle-row">
+          <div class="lifecycle-state"><span class="state-dot"></span><span>已启用</span></div>
+          <div class="runtime-actions">
+            <button class="button button-primary" type="button">停用</button>
+            <button class="button button-quiet" type="button">卸载</button>
+          </div>
+        </div>
+
+        <nav class="tabs" aria-label="插件详情页签">
+          <button class="tab active" type="button" aria-selected="true">操作</button>
+          <button class="tab" type="button" aria-selected="false">概览</button>
+          <button class="tab" type="button" aria-selected="false">日志</button>
+          <button class="tab" type="button" aria-selected="false">关于</button>
+        </nav>
+
+        <section aria-labelledby="operations-title">
+          <h3 class="section-title" id="operations-title">操作</h3>
+          <p class="status-message" id="status-message" aria-live="polite"></p>
+          <div class="value-grid" id="value-grid"></div>
+          <div class="actions" id="actions" aria-label="插件操作"></div>
+          <p class="contract-footnote"><strong>已配对设备</strong> 仅包含已经在 Windows 中配对、并支持媒体音频的设备。首次进入或设备变化后，点击“刷新”。</p>
+        </section>
+      </div>
+    </section>
+  </main>
+
+  <script>
+    const snapshots = {
+      ready: {
+        statusMessage: "已发现 2 台已配对设备。选择设备开始接收音频。",
+        values: [
+          ["连接状态", "未连接"],
+          ["当前设备", "未选择"],
+          ["已配对设备", "2 台"],
+          ["音频方向", "设备 → 电脑"]
+        ],
+        actions: [
+          { id: "refresh", label: "刷新", description: "重新读取已配对的媒体音频设备。" },
+          { id: "connect", label: "连接 客厅音箱", argument: "living-room", description: "连接客厅音箱并开始接收音频。" },
+          { id: "connect", label: "连接 我的手机", argument: "phone", description: "连接我的手机并开始接收音频。" }
+        ]
+      },
+      empty: {
+        statusMessage: "没有发现可用设备。请先在 Windows 蓝牙设置中完成配对，然后点击“刷新”。",
+        values: [
+          ["连接状态", "未连接"],
+          ["当前设备", "未选择"],
+          ["已配对设备", "0 台"],
+          ["音频方向", "设备 → 电脑"]
+        ],
+        actions: [
+          { id: "refresh", label: "刷新", description: "重新读取已配对的媒体音频设备。" }
+        ]
+      },
+      connecting: {
+        statusMessage: "正在连接客厅音箱，请稍候。",
+        values: [
+          ["连接状态", "正在连接"],
+          ["当前设备", "客厅音箱"],
+          ["已配对设备", "2 台"],
+          ["音频方向", "设备 → 电脑"]
+        ],
+        actions: [
+          { id: "refresh", label: "刷新", description: "重新读取已配对的媒体音频设备。", enabled: false },
+          { id: "disconnect", label: "取消连接", description: "取消当前连接操作。" }
+        ]
+      },
+      streaming: {
+        statusMessage: "正在从客厅音箱接收音频。电脑声音会继续通过 Windows 混音输出。",
+        values: [
+          ["连接状态", "已连接"],
+          ["当前设备", "客厅音箱"],
+          ["已配对设备", "2 台"],
+          ["音频方向", "设备 → 电脑"]
+        ],
+        actions: [
+          { id: "refresh", label: "刷新", description: "重新读取已配对的媒体音频设备。" },
+          { id: "disconnect", label: "断开连接", description: "停止接收客厅音箱的音频。" }
+        ]
+      },
+      error: {
+        statusMessage: "无法读取已配对设备。请检查 Windows 蓝牙服务后重试。",
+        values: [
+          ["连接状态", "需要处理"],
+          ["当前设备", "未选择"],
+          ["已配对设备", "未知"],
+          ["错误代码", "AUDIO_RELAY_DISCOVERY_FAILED"]
+        ],
+        actions: [
+          { id: "refresh", label: "刷新", description: "重新读取已配对的媒体音频设备。" }
+        ]
+      }
+    };
+
+    let currentState = "ready";
+    const stateSelect = document.querySelector("#preview-state");
+    const statusMessage = document.querySelector("#status-message");
+    const valueGrid = document.querySelector("#value-grid");
+    const actions = document.querySelector("#actions");
+
+    function render(snapshot) {
+      statusMessage.textContent = snapshot.statusMessage;
+      valueGrid.replaceChildren(...snapshot.values.map(([label, value]) => {
+        const card = document.createElement("div");
+        card.className = "value-card";
+        card.innerHTML = `<div class="value-label"></div><div class="value-text"></div>`;
+        card.querySelector(".value-label").textContent = label;
+        card.querySelector(".value-text").textContent = value;
+        return card;
+      }));
+
+      actions.replaceChildren(...snapshot.actions.map(action => {
+        const button = document.createElement("button");
+        button.className = "action-button";
+        button.type = "button";
+        button.disabled = action.enabled === false;
+        button.title = action.description || "";
+        button.innerHTML = `<span></span><span class="action-arrow" aria-hidden="true">→</span>`;
+        button.querySelector("span").textContent = action.label;
+        button.addEventListener("click", () => execute(action));
+        return button;
+      }));
+    }
+
+    function setState(nextState) {
+      currentState = nextState;
+      stateSelect.value = nextState;
+      render(snapshots[nextState]);
+    }
+
+    function execute(action) {
+      if (action.id === "refresh") {
+        statusMessage.textContent = "正在刷新已配对设备…";
+        window.setTimeout(() => setState("ready"), 550);
+        return;
+      }
+
+      if (action.id === "connect") {
+        setState("connecting");
+        window.setTimeout(() => setState("streaming"), 900);
+        return;
+      }
+
+      if (action.id === "disconnect") {
+        setState("ready");
+      }
+    }
+
+    stateSelect.addEventListener("change", event => setState(event.target.value));
+    render(snapshots[currentState]);
+  </script>
+</body>
+</html>
